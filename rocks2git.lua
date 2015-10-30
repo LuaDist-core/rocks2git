@@ -186,17 +186,3 @@ for version, spec_file in sortedPairs(mod) do
 end
 
 print('\n\n No more versions. Done.')
-
---[[
-    TODO
-    ====
-
-    - update existing repos (-> if older major version is updated)
-    - auto Github repo creation (needs API)
-    - auto push
-
-    - better error handling
-    - cleanup dependencies
-    - code cleanup
-
---]]
