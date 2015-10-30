@@ -46,7 +46,12 @@ function luarocks_download(spec_file, target_dir)
     -- run luarocks capturing the output
     local luarocks_out = sys.capture_output('luarocks unpack ' .. sys.quote(spec_file))
 
-    if luarocks_out:match('Error') then error('Luarocks failed') end
+    -- !!! Error messages are printed on stderr which is not captured
+    -- !!! by sys.capture_output
+    if luarocks_out:match('Error') or luarocks_out == '' then
+        print('Luarocks failed on spec file ' .. spec_file)
+        return nil
+    end
 
     -- extract module location from luarocks output
     i = string.find(luarocks_out, '\n', 2);
@@ -109,6 +114,10 @@ for i = 1, #specs do
 
     name, version, rev = f:match('(.+)%-(.+)%-(%d+)')
 
+    if not name or not version or not revision then
+        error('Failed to determine name, version or revision  of ' .. f)
+    end
+
     if not modules[name] then modules[name] = {} end
     modules[name][version .. '-' .. rev] = specs[i]
 end
@@ -117,72 +126,89 @@ end
 
 -- Test with redis-lua
 
-local mod_name = 'redis-lua'
+local mod_name = '30log'
 local mod = modules[mod_name]
 
 local target_dir = sys.abs_path('tmp/modules/')
 local repo_base_dir = sys.abs_path('repos/')
+local base_dir = sys.current_dir();
 
 local last_major = 0
 
 print('Module: ' .. mod_name)
 for version, spec_file in sortedPairs(mod) do
+    repeat
+        -- reset working directory
+        sys.change_dir(base_dir)
+        
+        -- load rockspec file
+        local spec_file = sys.abs_path(spec_file)
+        local rockspec = {}
+        secure_loadfile(spec_file, rockspec)
 
-    -- load rockspec file
-    local spec_file = sys.abs_path(spec_file)
-    local rockspec = {}
-    secure_loadfile(spec_file, rockspec)
-
-    -- download module from luarocks
-    module_dir = sys.make_path(target_dir, luarocks_download(spec_file, target_dir))
-    repo_dir = sys.make_path(repo_base_dir, mod_name)
-
-    -- init git repo if needed
-    if not sys.exists(repo_dir) then
-        sys.make_dir(repo_dir)
-        git_command(repo_dir, 'git init')
-    end
-
-    -- new major version?
-    local major = version:match('^(%d+)%.')
-    if tonumber(major) > last_major and last_major ~= 0 then
-        git_command(repo_dir, 'git checkout -b ' .. mod_name .. '-' .. last_major)
-        git_command(repo_dir, 'git checkout master')
-    end
-
-    -- cleanup repo
-    for f in sys.get_directory(repo_dir) do
-        if f ~= '.' and f ~= '..' and f ~= '.git' then
-            sys.delete(sys.make_path(repo_dir, f))
+        -- download module from luarocks
+        local download_loc = luarocks_download(spec_file, target_dir)
+        if not download_loc then
+            break
         end
-    end
+        
+        module_dir = sys.make_path(target_dir, download_loc)
+        
+        repo_dir = sys.make_path(repo_base_dir, mod_name)
 
-    -- move module to repo
-    for f in sys.get_directory(module_dir) do
-        if f ~= '.' and f ~= '..' then
-            sys.move_to(sys.make_path(module_dir, f), repo_dir)
+        -- init git repo if needed
+        if not sys.exists(repo_dir) then
+            sys.make_dir(repo_dir)
+            git_command(repo_dir, 'git init')
+            
+            -- create repository on github and link local repository to it
+            sys.exec('curl -d \'{"name": ' .. sys.quote(mod_name) .. '}\' -u "user:pwd" https://api.github.com/user/repos')
+            git_command(repo_dir, 'git remote add origin ' .. sys.quote('https://user:pwd@github.com/user/' .. mod_name .. '.git'))
         end
-    end
 
-    -- add rockspec file
-    sys.copy(spec_file, repo_dir)
-
-    -- commit changes
-    git_command(repo_dir, 'git add .')
-    git_command(repo_dir, 'git commit -m ' .. sys.quote("Update to version " .. version .. " [rocks2git-bot]"))
-
-    -- tag version in git
-    git_command(repo_dir, 'git tag -a ' .. sys.quote(version) .. ' -m ' .. sys.quote("Update to version " .. version .. " [rocks2git-bot]"))
-
-    -- cleanup tmp directory.
-    for f in sys.get_directory(target_dir) do
-        if f ~= '.' and f ~= '..' and f ~= '.git' then
-            sys.delete(sys.make_path(target_dir, f))
+        -- new major version?
+        local major = version:match('^(%d+)%.')
+        if tonumber(major) > last_major and last_major ~= 0 then
+            git_command(repo_dir, 'git checkout -b ' .. mod_name .. '-' .. last_major)
+            git_command(repo_dir, 'git checkout master')
         end
-    end
 
-    last_major = tonumber(major)
+        -- cleanup repo
+        for f in sys.get_directory(repo_dir) do
+            if f ~= '.' and f ~= '..' and f ~= '.git' then
+                sys.delete(sys.make_path(repo_dir, f))
+            end
+        end
 
+        -- move module to repo
+        for f in sys.get_directory(module_dir) do
+            if f ~= '.' and f ~= '..' then
+                sys.move_to(sys.make_path(module_dir, f), repo_dir)
+            end
+        end
+
+        -- add rockspec file
+        sys.copy(spec_file, repo_dir)
+
+        -- commit changes
+        git_command(repo_dir, 'git add -A')
+        git_command(repo_dir, 'git commit -m ' .. sys.quote("Update to version " .. version .. " [rocks2git-bot]"))
+
+        -- tag version in git
+        git_command(repo_dir, 'git tag -a ' .. sys.quote(version) .. ' -m ' .. sys.quote("Update to version " .. version .. " [rocks2git-bot]"))
+
+        -- push repository to github
+        git_command(repo_dir, 'git push -u origin master')
+        
+        -- cleanup tmp directory.
+        for f in sys.get_directory(target_dir) do
+            if f ~= '.' and f ~= '..' and f ~= '.git' then
+                sys.delete(sys.make_path(target_dir, f))
+            end
+        end
+
+        last_major = tonumber(major)
+    until true
 end
 
 print('\n\n No more versions. Done.')
