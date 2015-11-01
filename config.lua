@@ -11,4 +11,6 @@ blacklist =   file.read(blacklist_file):split()
 
 log_file =    path.join(data_dir, "log/rocks2git%s.log")
 
+luarocks_timeout = 10
+
 return _ENV

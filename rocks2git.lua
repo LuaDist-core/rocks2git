@@ -183,7 +183,7 @@ end
 
 function luarocks_download_module(module, version, spec_file, target_dir)
 
-    ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "'", true)
+    ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout, true)
 
     if err:match("Error") or out == '' then
         --log:error(err)
