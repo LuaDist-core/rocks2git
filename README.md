@@ -15,7 +15,7 @@ Downloads all modules from LuaRocks and creates Git repositories with correct ta
 - Proper logging on all levels (debug -> fatal)
 - Stats after completion -> list of new/updated modules, list of failed modules
 
-- Handling of non-SemVer packages?
+- Handling of non-SemVer packages?
 - Split logs into log and errors?
 - Handle versions starting with "v" prefix?
 - Proper sorting of release_version?
