@@ -1,214 +1,300 @@
--- Clone rockspecs mirror repo
---[[
-require 'git'
+-- Rocks2Git - Automatic Luarocks to Git importer
 
-local repo = 'git://github.com/rocks-moonscript-org/moonrocks-mirror.git'
-local ref = 'refs/heads/master'
+local lfs = require "lfs"
 
-RockspecRepo = git.repo.create('tmp/rockspecs.git')
-local _, sha = git.protocol.fetch(repo, RockspecRepo, ref)
-RockspecRepo:checkout(sha, 'tmp/rockspecs')
-]]
+require "pl"
+stringx.import()
 
-local pl = {}
-pl.dir = require 'pl.dir'
-pl.path = require 'pl.path'
+local logging = require "logging"
+require "logging.console"
+local log = logging.console()
 
-local dist = require 'dist'
-local sys = dist.sys
+local config = dofile("config.lua")
+
+local semver = require "semver"
+
+------------ UTILS
 
 
--- Iterate over a table in key order.
-function sortedPairs(t, f)
-    local a = {}
-    for n in pairs(t) do table.insert(a, n)
-    end
-    table.sort(a, f)
-    local i = 0
-    local iter = function()
-        i = i + 1
-        if a[i] == nil then return nil
-        else return a[i], t[a[i]]
-        end
-    end
-    return iter
-end
-
-
--- Downloads a luarocks package, returning path relative to given target_dir.
-function luarocks_download(spec_file, target_dir)
-
-    local spec_file = sys.abs_path(spec_file)
-
-    local ok, pwd = sys.change_dir(target_dir)
-    if not ok then error('Failed to change working directory') end
-
-    -- run luarocks capturing the output
-    local luarocks_out = sys.capture_output('luarocks unpack ' .. sys.quote(spec_file))
-
-    -- !!! Error messages are printed on stderr which is not captured
-    -- !!! by sys.capture_output
-    if luarocks_out:match('Error') or luarocks_out == '' then
-        print('Luarocks failed on spec file ' .. spec_file)
-        return nil
+function change_dir(dir_name)
+    local prev_dir, err = lfs.currentdir()
+    if not prev_dir then
+        return nil, err
     end
 
-    -- extract module location from luarocks output
-    i = string.find(luarocks_out, '\n', 2);
-    j = string.find(luarocks_out, '\n', i+1);
-    local location = string.sub(luarocks_out, i+1, j-1)
-
-    local ok = sys.change_dir(pwd)
-    if not ok then error('Failed to change working directory') end
-
-    return location
-end
-
-
--- A secure loadfile function
--- If file code chunk has upvalues, the first upvalue is set to the given
--- environement, if that parameter is given, or to the value of the global environment.
--- Copied from original luadist-git.
-function secure_loadfile(file, env)
-    assert(type(file) == "string", "secure_loadfile: Argument 'file' is not a string.")
-
-    -- use the given (or create a new) restricted environment
-    local env = env or {}
-
-    -- load the file and run in a protected call with the restricted env
-    -- setfenv is deprecated in lua 5.2 in favor of giving env in arguments
-    -- the additional loadfile arguments are simply ignored for previous lua versions
-    local f, err = loadfile(file, 'bt', env)
-    if f then
-        if setfenv ~= nil then
-            setfenv(f, env)
-        end
-        return pcall(f)
+    local ok, err = lfs.chdir(dir_name)
+    if ok then
+        return ok, prev_dir
     else
         return nil, err
     end
 end
 
 
-function git_command(repo, cmd)
-    local ok, pwd = sys.change_dir(sys.abs_path(repo))
-    if not ok then error('Failed to change working directory') end
-
-    local res = sys.exec(cmd, true)
-
-    local ok = sys.change_dir(pwd)
-    if not ok then error('Failed to change working directory') end
-
-    return res
+-- Check for a sensible version number.
+-- Accepts X.Y[.Z] with arbitrary alphanumeric suffix ("beta", "rc2", etc...)
+function check_version(v)
+    return v:match("^%d?%d%.%d+[%w%-%.%+]*") or v:match("^%d?%d%.%d+%.%d+[%w%-%.%+]*")
 end
 
 
+function unpack_version(v)
+    x, y, z, n, r = v:match("^(%d?%d)%.(%d+)%.(%d+)([%w%-%.%+]*)%-(%d+)")
+    if not major then
+       x, y, n, r = v:match("^(%d?%d)%.(%d+)([%w%-%.%+]*)%-(%d+)")
+    end
+    return {x = tonumber(x) or 0, y = tonumber(y) or 0, z = tonumber(z) or 0, n = n or '', r = tonumber(r) or 0}
+end
 
--- Get all modules and parse them
-local specs = pl.dir.getfiles('tmp/rockspecs/', '*.rockspec')
+function version_comparator(x, y)
+    print('->', '|'..x..'|', '|'..y..'|')
+    a = unpack_version(x)
+    b = unpack_version(y)
 
-modules = {}
-
-for i = 1, #specs do
-    local f = pl.path.splitext(pl.path.basename(specs[i]))
-
-    name, version, rev = f:match('(.+)%-(.+)%-(%d+)')
-
-    if not name or not version or not revision then
-        error('Failed to determine name, version or revision  of ' .. f)
+    if a.x < b.x then
+        return true
+    end
+    if a.x == b.x then
+        if a.y < b.y then
+            return true
+        end
+        if a.y == b.y then
+            if a.z < b.z then
+                return true
+            end
+            if a.z == b.z then
+                if a.n < b.n then
+                    return true
+                end
+                if a.n and b.n and a.n == b.n then
+                    if a.r < b.r then
+                        return true
+                    end
+                end
+            end
+        end
     end
 
-    if not modules[name] then modules[name] = {} end
-    modules[name][version .. '-' .. rev] = specs[i]
+    return false
+end
+
+
+-- Create a table of modules from the LuaRocks mirror repository.
+-- Only returns modules with correct name, version and revision info.
+function get_luarocks_modules()
+    local modules = {}
+    local specs = dir.getfiles(config.mirror_repo, "*.rockspec")
+
+    tablex.foreachi(specs, function(spec, i)
+        local f = path.splitext(path.basename(spec))
+
+        name, version, rev = f:match("(.+)%-(.+)%-(%d+)")
+
+        -- Check correct rockspec filename
+        if not(name and version and rev) then
+            log:warn("Incorrect rockspec filename: %s", path.basename(spec))
+            return
+        end
+
+        -- Check blacklist
+        if tablex.find(blacklist, name) ~= nil then
+            log:warn("Module name %s is blacklisted", name)
+            return
+        end
+
+        -- Check version format
+        if not check_version(version) then
+            log:warn("Incorrect version '%s' in module %s", version, name)
+            return
+        end
+
+        -- Add version to table
+        if not modules[name] then modules[name] = {} end
+        modules[name][version .. "-" .. rev] = spec
+
+    end
+    )
+
+    return modules
+end
+
+
+------------ GIT-RELATED
+
+
+function dir_exec(dir, cmd, capture)
+    ok, pwd = change_dir(dir)
+    if not ok then error("Could not change directory.") end
+
+    log:debug("Running command: " .. cmd)
+
+    ok, code, out, err = utils.executeex(cmd)
+
+    okk = change_dir(pwd)
+    if not okk then error("Could not change directory.") end
+
+    if not capture then
+        return ok, code
+    else
+        return ok, code, out, err
+    end
+end
+
+
+-- List of all tagged versions, sorted
+function get_module_versions(repo)
+    ok, code, out, err = dir_exec(repo, "git tag --sort='v:refname'", true)
+
+    if code ~= 0 then
+        return nil, err
+    end
+    return out:splitlines()
+end
+
+
+-- Get a module's repository, creating it if one doesn't exist
+function get_module_repo(module)
+    local repo_path = path.join(config.git_base, module)
+
+    if path.exists(repo_path) and path.isdir(repo_path) then
+        return repo_path
+    end
+
+    dir.makepath(repo_path)
+    dir_exec(repo_path, "git init")
+    return repo_path
+end
+
+
+function luarocks_download_module(module, version, spec_file, target_dir)
+
+    ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "'", true)
+
+    if err:match("Error") or out == '' then
+        --log:error(err)
+        -- TODO try to download src.rock
+        return nil, err
+    end
+
+    -- extract module location from luarocks output
+    output = out:splitlines()
+    return target_dir .. '/' .. output[#output-1]
+
+end
+
+
+function cleanup_repo(repo)
+    files = dir.getfiles(repo)
+    for i = 1, #files do
+        file.delete(files[i])
+    end
+    dirs = dir.getdirectories(repo)
+    for i = 1, #dirs do
+        if path.basename(dirs[i]) ~= ".git" then
+            dir.rmtree(dirs[i])
+        end
+    end
+end
+
+
+function move_module(module_dir, repo)
+    files = dir.getfiles(module_dir)
+    for i = 1, #files do
+        dir.movefile(files[i], path.join(repo, path.basename(files[i])))
+    end
+    dirs = dir.getdirectories(module_dir)
+    for i = 1, #dirs do
+        if path.basename(dirs[i]) ~= ".git" then
+            dir.movefile(dirs[i], path.join(repo, path.basename(dirs[i])))
+        end
+    end
+end
+
+
+function process_module_version(name, version, repo, spec_file)
+    -- Get processed versions
+    tagged_versions = get_module_versions(repo)
+
+    -- Get latest major version
+    last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^(%d+)%.") or nil)
+
+    -- Version already processed
+    if tablex.find(tagged_versions, version) ~= nil then
+        return
+    end
+
+    -- Download module from LuaRocks
+    module_dir = luarocks_download_module(module, version, spec_file, config.temp_dir)
+    if not module_dir or not (path.exists(module_dir) and path.isdir(module_dir)) then
+        log:error("Module %s-%s could not be downloaded.", name, version)
+        return
+    end
+
+    major = tonumber(version:match("^(%d+)%."))
+
+    -- Create major branch for last major and checkout master
+    if last_major and major > last_major then
+        dir_exec(repo, "git checkout -b " .. name .. "-" .. last_major)
+        dir_exec(repo, "git checkout master")
+
+    -- Checkout correct major branch
+    elseif last_major and major < last_major then
+        dir_exec(repo, "git checkout " .. name .. "-" .. major)
+
+    -- Checkout master, just to be sure.
+    else
+        ok, _, branches = dir_exec(repo, "git branch")
+        if branches ~= "" then
+            dir_exec(repo, "git checkout master")
+        end
+    end
+
+    -- Cleanup repo contents
+    cleanup_repo(repo)
+
+    -- Move module to repo
+    move_module(module_dir, repo)
+
+    -- Add rockspec file
+    -- TODO modify source
+    file.copy(spec_file, path.join(repo, path.basename(spec_file)))
+
+    -- Commit changes
+    dir_exec(repo, "git add -A")
+    dir_exec(repo, "git commit -m '" .. "Update to version " .. version .. "'")
+
+    -- Tag Git version
+    dir_exec(repo, "git tag -a '" .. version .. "' -m '" .. "Update to version " .. version .. "'")
+
+    -- Cleanup tmp repo
+    --a, b, c, d = dir_exec(config.temp_dir, "rm -rf ./", true)
+    --if not a or tonumber(b) ~= 0 then print(c, d) end
+end
+
+
+function process_module(name, versions)
+
+    repo = get_module_repo(name)
+
+    print(name)
+    for version, spec_file in tablex.sort(versions, version_comparator) do
+        print('\t'..version)
+        --process_module_version(name, version, repo, spec_file)
+    end
+
 end
 
 
 
--- Test with redis-lua
+log:setLevel(logging.WARN)
 
-local mod_name = '30log'
-local mod = modules[mod_name]
-
-local target_dir = sys.abs_path('tmp/modules/')
-local repo_base_dir = sys.abs_path('repos/')
-local base_dir = sys.current_dir();
-
-local last_major = 0
-
-print('Module: ' .. mod_name)
-for version, spec_file in sortedPairs(mod) do
-    repeat
-        -- reset working directory
-        sys.change_dir(base_dir)
-        
-        -- load rockspec file
-        local spec_file = sys.abs_path(spec_file)
-        local rockspec = {}
-        secure_loadfile(spec_file, rockspec)
-
-        -- download module from luarocks
-        local download_loc = luarocks_download(spec_file, target_dir)
-        if not download_loc then
-            break
-        end
-        
-        module_dir = sys.make_path(target_dir, download_loc)
-        
-        repo_dir = sys.make_path(repo_base_dir, mod_name)
-
-        -- init git repo if needed
-        if not sys.exists(repo_dir) then
-            sys.make_dir(repo_dir)
-            git_command(repo_dir, 'git init')
-            
-            -- create repository on github and link local repository to it
-            sys.exec('curl -d \'{"name": ' .. sys.quote(mod_name) .. '}\' -u "user:pwd" https://api.github.com/user/repos')
-            git_command(repo_dir, 'git remote add origin ' .. sys.quote('https://user:pwd@github.com/user/' .. mod_name .. '.git'))
-        end
-
-        -- new major version?
-        local major = version:match('^(%d+)%.')
-        if tonumber(major) > last_major and last_major ~= 0 then
-            git_command(repo_dir, 'git checkout -b ' .. mod_name .. '-' .. last_major)
-            git_command(repo_dir, 'git checkout master')
-        end
-
-        -- cleanup repo
-        for f in sys.get_directory(repo_dir) do
-            if f ~= '.' and f ~= '..' and f ~= '.git' then
-                sys.delete(sys.make_path(repo_dir, f))
-            end
-        end
-
-        -- move module to repo
-        for f in sys.get_directory(module_dir) do
-            if f ~= '.' and f ~= '..' then
-                sys.move_to(sys.make_path(module_dir, f), repo_dir)
-            end
-        end
-
-        -- add rockspec file
-        sys.copy(spec_file, repo_dir)
-
-        -- commit changes
-        git_command(repo_dir, 'git add -A')
-        git_command(repo_dir, 'git commit -m ' .. sys.quote("Update to version " .. version .. " [rocks2git-bot]"))
-
-        -- tag version in git
-        git_command(repo_dir, 'git tag -a ' .. sys.quote(version) .. ' -m ' .. sys.quote("Update to version " .. version .. " [rocks2git-bot]"))
-
-        -- push repository to github
-        git_command(repo_dir, 'git push -u origin master')
-        
-        -- cleanup tmp directory.
-        for f in sys.get_directory(target_dir) do
-            if f ~= '.' and f ~= '..' and f ~= '.git' then
-                sys.delete(sys.make_path(target_dir, f))
-            end
-        end
-
-        last_major = tonumber(major)
-    until true
+local modules = get_luarocks_modules()
+for name, versions in tablex.sort(modules) do
+    process_module(name, versions)
 end
 
-print('\n\n No more versions. Done.')
+
+--name = 'bcrypt'
+--process_module(name, modules[name])
+
+--print(version_comparator('2.0-5', '1.0.34-1'))

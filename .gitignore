@@ -1,2 +1,7 @@
-repos/
-tmp/
+data/repos
+data/tmp
+data/luarocks-mirror
+
+.gitignore
+versions.log
+*.old
