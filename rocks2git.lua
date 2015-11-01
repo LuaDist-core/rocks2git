@@ -11,7 +11,6 @@ local log = logging.console()
 
 local config = dofile("config.lua")
 
-local semver = require "semver"
 
 ------------ UTILS
 
@@ -39,17 +38,33 @@ end
 
 
 function unpack_version(v)
-    x, y, z, n, r = v:match("^(%d?%d)%.(%d+)%.(%d+)([%w%-%.%+]*)%-(%d+)")
-    if not major then
-       x, y, n, r = v:match("^(%d?%d)%.(%d+)([%w%-%.%+]*)%-(%d+)")
+    local x, y, z, _, r
+    if v:match("^%d?%d%.%d+%.%d+[%w%-%.%+]*") then
+        x, y, z, _, r = v:match("^(%d?%d)%.(%d+)%.(%d+)([%w%-%.%+]*)%-(%d+)$")
+        return {
+            x = tonumber(x),
+            y = tonumber(y),
+            z = tonumber(z),
+            _ = _,
+            r = tonumber(r)
+        }
     end
-    return {x = tonumber(x) or 0, y = tonumber(y) or 0, z = tonumber(z) or 0, n = n or '', r = tonumber(r) or 0}
+    if v:match("^%d?%d%.%d+[%w%-%.%+]*") then
+        x, y, _, r = v:match("^(%d?%d)%.(%d+)([%w%-%.%+]*)%-(%d+)$")
+        return {
+            x = tonumber(x),
+            y = tonumber(y),
+            z = 0,
+            _ = _,
+            r = tonumber(r)
+        }
+    end
 end
 
+
 function version_comparator(x, y)
-    print('->', '|'..x..'|', '|'..y..'|')
-    a = unpack_version(x)
-    b = unpack_version(y)
+    local a = unpack_version(x)
+    local b = unpack_version(y)
 
     if a.x < b.x then
         return true
@@ -63,10 +78,10 @@ function version_comparator(x, y)
                 return true
             end
             if a.z == b.z then
-                if a.n < b.n then
+                if a._ < b._ then
                     return true
                 end
-                if a.n and b.n and a.n == b.n then
+                if a._ and b._ and a._ == b._ then
                     if a.r < b.r then
                         return true
                     end
@@ -279,14 +294,14 @@ function process_module(name, versions)
     print(name)
     for version, spec_file in tablex.sort(versions, version_comparator) do
         print('\t'..version)
-        --process_module_version(name, version, repo, spec_file)
+        process_module_version(name, version, repo, spec_file)
     end
 
 end
 
 
 
-log:setLevel(logging.WARN)
+log:setLevel(logging.ERROR)
 
 local modules = get_luarocks_modules()
 for name, versions in tablex.sort(modules) do
@@ -294,7 +309,7 @@ for name, versions in tablex.sort(modules) do
 end
 
 
---name = 'bcrypt'
+--name = 'busted'
 --process_module(name, modules[name])
 
 --print(version_comparator('2.0-5', '1.0.34-1'))

@@ -5,3 +5,4 @@ data/luarocks-mirror
 .gitignore
 versions.log
 *.old
+output.log
