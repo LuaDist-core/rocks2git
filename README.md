@@ -2,10 +2,22 @@
 
 _Automatic LuaRocks to Git repo conversion tool._
 
-Proof of Concept.
+Downloads all modules from LuaRocks and creates Git repositories with correct tags, branches and history for each module.
 
-Currently supports batch conversion of a given luarocks module to a tagged git repository.
+## Todo
 
-## TODO
+- Try using src.rock if download fails
+- Timeout luarocks downloads
+- Update rockspec
+- Cleanup tmp directory
+- Create `data_dir` structure if not exist
+- Refactor version comparator
+- Proper logging on all levels (debug -> fatal)
+- Stats after completion -> list of new/updated modules, list of failed modules
 
-- make it better :)
+- Handling of non-SemVer packages?
+- Split logs into log and errors?
+- Handle versions starting with "v" prefix?
+- Proper sorting of release_version?
+
+- Docker container
