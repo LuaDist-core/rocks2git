@@ -181,17 +181,15 @@ function get_module_repo(module)
 end
 
 
-function luarocks_download_module(module, version, spec_file, target_dir)
+function luarocks_download_module(spec_file, target_dir)
 
     ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout, true)
 
     if err:match("Error") or out == '' then
-        --log:error(err)
-        -- TODO try to download src.rock
         return nil, err
     end
 
-    -- extract module location from luarocks output
+    -- Extract module location from luarocks output
     output = out:splitlines()
     return target_dir .. '/' .. output[#output-1]
 
@@ -239,7 +237,14 @@ function process_module_version(name, version, repo, spec_file)
     end
 
     -- Download module from LuaRocks
-    module_dir = luarocks_download_module(module, version, spec_file, config.temp_dir)
+    module_dir = luarocks_download_module(spec_file, config.temp_dir)
+
+    -- Try to find src.rock in the mirror repo
+    src_file = path.join(config.mirror_repo, name .. '-' .. version .. '.src.rock')
+    if not module_dir and path.exists(src_file) and path.isfile(src_file) then
+        module_dir = luarocks_download_module(src_file, config.temp_dir)
+    end
+
     if not module_dir or not (path.exists(module_dir) and path.isdir(module_dir)) then
         log:error("Module %s-%s could not be downloaded.", name, version)
         return
@@ -304,12 +309,12 @@ end
 log:setLevel(logging.ERROR)
 
 local modules = get_luarocks_modules()
-for name, versions in tablex.sort(modules) do
-    process_module(name, versions)
-end
+--for name, versions in tablex.sort(modules) do
+--    process_module(name, versions)
+--end
 
 
---name = 'busted'
---process_module(name, modules[name])
+name = 'concurrentlua'
+process_module(name, modules[name])
 
 --print(version_comparator('2.0-5', '1.0.34-1'))

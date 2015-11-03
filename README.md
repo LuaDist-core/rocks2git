@@ -6,8 +6,6 @@ Downloads all modules from LuaRocks and creates Git repositories with correct ta
 
 ## Todo
 
-- Try using src.rock if download fails
-- Timeout luarocks downloads
 - Update rockspec
 - Cleanup tmp directory
 - Create `data_dir` structure if not exist
