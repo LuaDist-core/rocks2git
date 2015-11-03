@@ -7,7 +7,6 @@ Downloads all modules from LuaRocks and creates Git repositories with correct ta
 ## Todo
 
 - Update rockspec
-- Cleanup tmp directory
 - Create `data_dir` structure if not exist
 - Refactor version comparator
 - Proper logging on all levels (debug -> fatal)

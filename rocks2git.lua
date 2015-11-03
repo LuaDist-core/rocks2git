@@ -196,7 +196,7 @@ function luarocks_download_module(spec_file, target_dir)
 end
 
 
-function cleanup_repo(repo)
+function cleanup_dir(repo)
     files = dir.getfiles(repo)
     for i = 1, #files do
         file.delete(files[i])
@@ -270,7 +270,7 @@ function process_module_version(name, version, repo, spec_file)
     end
 
     -- Cleanup repo contents
-    cleanup_repo(repo)
+    cleanup_dir(repo)
 
     -- Move module to repo
     move_module(module_dir, repo)
@@ -286,9 +286,6 @@ function process_module_version(name, version, repo, spec_file)
     -- Tag Git version
     dir_exec(repo, "git tag -a '" .. version .. "' -m '" .. "Update to version " .. version .. "'")
 
-    -- Cleanup tmp repo
-    --a, b, c, d = dir_exec(config.temp_dir, "rm -rf ./", true)
-    --if not a or tonumber(b) ~= 0 then print(c, d) end
 end
 
 
@@ -313,8 +310,8 @@ local modules = get_luarocks_modules()
 --    process_module(name, versions)
 --end
 
-
 name = 'concurrentlua'
 process_module(name, modules[name])
 
---print(version_comparator('2.0-5', '1.0.34-1'))
+
+cleanup_dir(config.temp_dir)
