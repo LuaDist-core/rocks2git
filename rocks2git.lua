@@ -1,4 +1,10 @@
 -- Rocks2Git - Automatic Luarocks to Git importer
+-- luaci@luadist.org
+-- verzie skusit zoradit, pripadne orphan, to iste ked znova ideme a uz funguje
+-- source cez commentre
+-- logovanie len chyb + co failo
+
+module("rocks2git", package.seeall)
 
 local lfs = require "lfs"
 
@@ -9,7 +15,8 @@ local logging = require "logging"
 require "logging.console"
 local log = logging.console()
 
-local config = dofile("config.lua")
+local config = require "rocks2git.config"
+local constraints = require "rocks2git.constraints"
 
 
 ------------ UTILS
@@ -30,70 +37,6 @@ function change_dir(dir_name)
 end
 
 
--- Check for a sensible version number.
--- Accepts X.Y[.Z] with arbitrary alphanumeric suffix ("beta", "rc2", etc...)
-function check_version(v)
-    return v:match("^%d?%d%.%d+[%w%-%.%+]*") or v:match("^%d?%d%.%d+%.%d+[%w%-%.%+]*")
-end
-
-
-function unpack_version(v)
-    local x, y, z, _, r
-    if v:match("^%d?%d%.%d+%.%d+[%w%-%.%+]*") then
-        x, y, z, _, r = v:match("^(%d?%d)%.(%d+)%.(%d+)([%w%-%.%+]*)%-(%d+)$")
-        return {
-            x = tonumber(x),
-            y = tonumber(y),
-            z = tonumber(z),
-            _ = _,
-            r = tonumber(r)
-        }
-    end
-    if v:match("^%d?%d%.%d+[%w%-%.%+]*") then
-        x, y, _, r = v:match("^(%d?%d)%.(%d+)([%w%-%.%+]*)%-(%d+)$")
-        return {
-            x = tonumber(x),
-            y = tonumber(y),
-            z = 0,
-            _ = _,
-            r = tonumber(r)
-        }
-    end
-end
-
-
-function version_comparator(x, y)
-    local a = unpack_version(x)
-    local b = unpack_version(y)
-
-    if a.x < b.x then
-        return true
-    end
-    if a.x == b.x then
-        if a.y < b.y then
-            return true
-        end
-        if a.y == b.y then
-            if a.z < b.z then
-                return true
-            end
-            if a.z == b.z then
-                if a._ < b._ then
-                    return true
-                end
-                if a._ and b._ and a._ == b._ then
-                    if a.r < b.r then
-                        return true
-                    end
-                end
-            end
-        end
-    end
-
-    return false
-end
-
-
 -- Create a table of modules from the LuaRocks mirror repository.
 -- Only returns modules with correct name, version and revision info.
 function get_luarocks_modules()
@@ -107,19 +50,13 @@ function get_luarocks_modules()
 
         -- Check correct rockspec filename
         if not(name and version and rev) then
-            log:warn("Incorrect rockspec filename: %s", path.basename(spec))
+            log:error("Incorrect rockspec filename: %s", path.basename(spec))
             return
         end
 
         -- Check blacklist
-        if tablex.find(blacklist, name) ~= nil then
+        if tablex.find(config.blacklist, name) ~= nil then
             log:warn("Module name %s is blacklisted", name)
-            return
-        end
-
-        -- Check version format
-        if not check_version(version) then
-            log:warn("Incorrect version '%s' in module %s", version, name)
             return
         end
 
@@ -131,6 +68,39 @@ function get_luarocks_modules()
     )
 
     return modules
+end
+
+
+-- Update source in the rockspec to new LuaDist github repo
+function update_rockspec_source(spec_file, name, version)
+    local lines = file.read(spec_file):splitlines()
+    local source_start, source_end
+
+    -- Find source definition line numbers
+    for i = 1, #lines do
+        if lines[i]:match("^%s*source%s*=%s{") then
+            source_start = i
+        end
+        if source_start and i >= source_start and lines[i]:match("^%s*}") then
+            source_end = i
+            break
+        end
+    end
+
+    -- Comment out old source definition
+    for i = source_start, source_end do
+        lines[i] = "-- " .. lines[i]
+    end
+
+    -- Prepare new source definition
+    new_source = {
+        url = config.git_module_source:format(name),
+        tag = version
+    }
+    source_string = "-- LuaDist source\nsource = " .. pretty.write(new_source) .. "\n"
+    lines[source_start] = source_string .. lines[source_start]
+
+    return ("\n"):join(lines)
 end
 
 
@@ -156,8 +126,19 @@ function dir_exec(dir, cmd, capture)
 end
 
 
--- List of all tagged versions, sorted
-function get_module_versions(repo)
+-- List of all tagged versions, sorted.
+-- If argument 'major' is specified, only versions with that major are returned, sorted by commit date newest-first.
+function get_module_versions(repo, major)
+    if major then
+        ok, code, out, err = dir_exec(repo, "git for-each-ref --sort=-taggerdate --format '%(refname:short)' refs/tags | grep '^"
+            .. major .. "[.-]'", true)
+
+        if err ~= "" then
+            return nul, err
+        end
+        return out:splitlines()
+    end
+
     ok, code, out, err = dir_exec(repo, "git tag --sort='v:refname'", true)
 
     if code ~= 0 then
@@ -167,16 +148,19 @@ function get_module_versions(repo)
 end
 
 
--- Get a module's repository, creating it if one doesn't exist
-function get_module_repo(module)
+-- Prepare module's repository, creating it if one doesn't exist
+function prepare_module_repo(module)
     local repo_path = path.join(config.git_base, module)
 
     if path.exists(repo_path) and path.isdir(repo_path) then
+        -- TODO pull all branches and tags
         return repo_path
     end
 
     dir.makepath(repo_path)
     dir_exec(repo_path, "git init")
+    dir_exec(repo_path, "git config --local user.name '"  .. config.git_user_name .. "'")
+    dir_exec(repo_path, "git config --local user.email '" .. config.git_user_mail .. "'")
     return repo_path
 end
 
@@ -185,13 +169,13 @@ function luarocks_download_module(spec_file, target_dir)
 
     ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout, true)
 
-    if err:match("Error") or out == '' then
+    if err:match("Error") or out == "" then
         return nil, err
     end
 
     -- Extract module location from luarocks output
     output = out:splitlines()
-    return target_dir .. '/' .. output[#output-1]
+    return target_dir .. "/" .. output[#output-1]
 
 end
 
@@ -229,7 +213,7 @@ function process_module_version(name, version, repo, spec_file)
     tagged_versions = get_module_versions(repo)
 
     -- Get latest major version
-    last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^(%d+)%.") or nil)
+    last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^(%d+)[%.%-]") or nil)
 
     -- Version already processed
     if tablex.find(tagged_versions, version) ~= nil then
@@ -240,9 +224,9 @@ function process_module_version(name, version, repo, spec_file)
     module_dir = luarocks_download_module(spec_file, config.temp_dir)
 
     -- Try to find src.rock in the mirror repo
-    src_file = path.join(config.mirror_repo, name .. '-' .. version .. '.src.rock')
+    src_file = path.join(config.mirror_repo, name .. "-" .. version .. ".src.rock")
     if not module_dir and path.exists(src_file) and path.isfile(src_file) then
-        module_dir = luarocks_download_module(src_file, config.temp_dir)
+        --module_dir = luarocks_download_module(src_file, config.temp_dir)
     end
 
     if not module_dir or not (path.exists(module_dir) and path.isdir(module_dir)) then
@@ -250,7 +234,7 @@ function process_module_version(name, version, repo, spec_file)
         return
     end
 
-    major = tonumber(version:match("^(%d+)%."))
+    major = tonumber(version:match("^(%d+)[%.%-]"))
 
     -- Create major branch for last major and checkout master
     if last_major and major > last_major then
@@ -269,15 +253,33 @@ function process_module_version(name, version, repo, spec_file)
         end
     end
 
+    -- Check if commit chronology can be retained - if not, checkout a new branch based on preceeding tagged version
+    my_major_versions = get_module_versions(repo, major)
+    if #my_major_versions then
+        local largest = constraints.parse_version(my_major_versions[1])
+        local current = constraints.parse_version(version)
+        if largest > current then
+            local start_point
+            for i = 1, #my_major_versions do
+                if current > constraints.parse_version(my_major_versions[i]) then
+                    start_point = my_major_versions[i]
+                    break
+                end
+            end
+
+            dir_exec(repo, "git checkout -b " .. name .. "-" .. version .. " " .. start_point)
+        end
+    end
+
     -- Cleanup repo contents
     cleanup_dir(repo)
 
     -- Move module to repo
     move_module(module_dir, repo)
 
-    -- Add rockspec file
-    -- TODO modify source
-    file.copy(spec_file, path.join(repo, path.basename(spec_file)))
+    -- Add rockspec file with modified source definition
+    rockspec = update_rockspec_source(spec_file, name, version)
+    file.write(path.join(repo, path.basename(spec_file)), rockspec)
 
     -- Commit changes
     dir_exec(repo, "git add -A")
@@ -291,11 +293,11 @@ end
 
 function process_module(name, versions)
 
-    repo = get_module_repo(name)
+    repo = prepare_module_repo(name)
 
     print(name)
-    for version, spec_file in tablex.sort(versions, version_comparator) do
-        print('\t'..version)
+    for version, spec_file in tablex.sort(versions, constraints.compare_versions) do
+        print("\t"..version)
         process_module_version(name, version, repo, spec_file)
     end
 
@@ -305,12 +307,15 @@ end
 
 log:setLevel(logging.ERROR)
 
+--TODO pull luarocks mirror repo
+dir_exec(config.mirror_repo, "git pull origin master")
+
 local modules = get_luarocks_modules()
 --for name, versions in tablex.sort(modules) do
 --    process_module(name, versions)
 --end
 
-name = 'concurrentlua'
+name = 'busted'
 process_module(name, modules[name])
 
 
