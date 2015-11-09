@@ -1,8 +1,7 @@
--- Rocks2Git - Automatic Luarocks to Git importer
--- luaci@luadist.org
--- verzie skusit zoradit, pripadne orphan, to iste ked znova ideme a uz funguje
--- source cez commentre
--- logovanie len chyb + co failo
+-- Rocks2Git - Automatic LuaRocks to Git importer
+-- Part of the LuaDist project - http://luadist.org
+-- Author: Martin Srank, martin@smasty.net
+-- License: MIT
 
 module("rocks2git", package.seeall)
 
@@ -50,11 +49,12 @@ function get_luarocks_modules()
 
         -- Check correct rockspec filename
         if not(name and version and rev) then
-            log:error("Incorrect rockspec filename: %s", path.basename(spec))
+            log:error("Incorrect rockspec file: %s", path.basename(spec))
             return
         end
 
         -- Check blacklist
+        -- TODO better blacklist - support for versions and wildcards
         if tablex.find(config.blacklist, name) ~= nil then
             log:warn("Module name %s is blacklisted", name)
             return
@@ -78,13 +78,21 @@ function update_rockspec_source(spec_file, name, version)
 
     -- Find source definition line numbers
     for i = 1, #lines do
-        if lines[i]:match("^%s*source%s*=%s{") then
+        local l = lines[i]
+        if l:match("^%s*source%s*=%s{") or (l:match("^%s*source%s*=") and l:match("^%s*{")) then
             source_start = i
         end
         if source_start and i >= source_start and lines[i]:match("^%s*}") then
             source_end = i
             break
         end
+    end
+
+    -- Return original spec file if cannot parse source
+    -- TODO use table loading to change source
+    if not source_start or not source_end then
+        log:error("Could not update source in rockspec for module " .. name .. " " .. version)
+        return file.read(spec_file)
     end
 
     -- Comment out old source definition
@@ -134,9 +142,9 @@ function get_module_versions(repo, major)
             .. major .. "[.-]'", true)
 
         if err ~= "" then
-            return nul, err
+            return nil, err
         end
-        return out:splitlines()
+        return out ~= "" and out:splitlines() or {}
     end
 
     ok, code, out, err = dir_exec(repo, "git tag --sort='v:refname'", true)
@@ -169,7 +177,7 @@ function luarocks_download_module(spec_file, target_dir)
 
     ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout, true)
 
-    if err:match("Error") or out == "" then
+    if err:match("Error") or out == "" or code ~= 0 then
         return nil, err
     end
 
@@ -213,7 +221,7 @@ function process_module_version(name, version, repo, spec_file)
     tagged_versions = get_module_versions(repo)
 
     -- Get latest major version
-    last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^(%d+)[%.%-]") or nil)
+    last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^v?(%d+)[%.%-]") or nil)
 
     -- Version already processed
     if tablex.find(tagged_versions, version) ~= nil then
@@ -226,7 +234,7 @@ function process_module_version(name, version, repo, spec_file)
     -- Try to find src.rock in the mirror repo
     src_file = path.join(config.mirror_repo, name .. "-" .. version .. ".src.rock")
     if not module_dir and path.exists(src_file) and path.isfile(src_file) then
-        --module_dir = luarocks_download_module(src_file, config.temp_dir)
+        module_dir = luarocks_download_module(src_file, config.temp_dir)
     end
 
     if not module_dir or not (path.exists(module_dir) and path.isdir(module_dir)) then
@@ -234,7 +242,7 @@ function process_module_version(name, version, repo, spec_file)
         return
     end
 
-    major = tonumber(version:match("^(%d+)[%.%-]"))
+    major = tonumber(version:match("^v?(%d+)[%.%-]"))
 
     -- Create major branch for last major and checkout master
     if last_major and major > last_major then
@@ -247,7 +255,7 @@ function process_module_version(name, version, repo, spec_file)
 
     -- Checkout master, just to be sure.
     else
-        ok, _, branches = dir_exec(repo, "git branch")
+        ok, _, branches = dir_exec(repo, "git branch", true)
         if branches ~= "" then
             dir_exec(repo, "git checkout master")
         end
@@ -255,10 +263,10 @@ function process_module_version(name, version, repo, spec_file)
 
     -- Check if commit chronology can be retained - if not, checkout a new branch based on preceeding tagged version
     my_major_versions = get_module_versions(repo, major)
-    if #my_major_versions then
+    if major and #my_major_versions then
         local largest = constraints.parse_version(my_major_versions[1])
         local current = constraints.parse_version(version)
-        if largest > current then
+        if largest and current and largest > current then
             local start_point
             for i = 1, #my_major_versions do
                 if current > constraints.parse_version(my_major_versions[i]) then
@@ -267,7 +275,11 @@ function process_module_version(name, version, repo, spec_file)
                 end
             end
 
-            dir_exec(repo, "git checkout -b " .. name .. "-" .. version .. " " .. start_point)
+            if start_point then
+                dir_exec(repo, "git checkout -b " .. name .. "-" .. version .. " " .. start_point)
+            else
+                dir_exec(repo, "git checkout --orphan " .. name .. "-" .. version)
+            end
         end
     end
 
@@ -305,18 +317,22 @@ end
 
 
 
-log:setLevel(logging.ERROR)
+if #arg < 1 then
 
---TODO pull luarocks mirror repo
-dir_exec(config.mirror_repo, "git pull origin master")
+    log:setLevel(logging.ERROR)
 
-local modules = get_luarocks_modules()
---for name, versions in tablex.sort(modules) do
---    process_module(name, versions)
---end
+    dir_exec(config.mirror_repo, "git pull origin master")
 
-name = 'busted'
-process_module(name, modules[name])
+    local modules = get_luarocks_modules()
+    for name, versions in tablex.sort(modules) do
+        process_module(name, versions)
+    end
 
+    cleanup_dir(config.temp_dir)
+else
 
-cleanup_dir(config.temp_dir)
+    local modules = get_luarocks_modules()
+    name = arg[1]
+    process_module(name, modules[name])
+    cleanup_dir(config.temp_dir)
+end

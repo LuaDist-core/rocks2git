@@ -1,4 +1,7 @@
--- Rocks2git configuration.
+-- Rocks2Git configuration
+-- Part of the LuaDist project - http://luadist.org
+-- Author: Martin Srank, martin@smasty.net
+-- License: MIT
 
 module("rocks2git.config", package.seeall)
 
@@ -13,7 +16,7 @@ data_dir = path.abspath("data")
 mirror_repo = path.join(data_dir, "luarocks-mirror")
 
 -- Base path for Git repositories
-git_base = path.join(data_dir, "repos")
+git_base = path.join(data_dir, "repos-test")
 
 -- Path to the temporary directory, where LuaRocks unpacks downloaded modules
 temp_dir = path.join(data_dir, "tmp")

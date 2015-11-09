@@ -1,6 +1,8 @@
 -- Rocks2Git version constraints functions
+-- Part of the LuaDist project - http://luadist.org
 -- Peter Drahoš, LuaDist Project, 2010
 -- Original Code borrowed from LuaRocks Project
+-- License: MIT
 
 -- Version constraints handling functions.
 -- Dependencies are represented in LuaDist through strings with
