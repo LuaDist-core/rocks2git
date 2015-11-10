@@ -16,7 +16,7 @@ data_dir = path.abspath("data")
 mirror_repo = path.join(data_dir, "luarocks-mirror")
 
 -- Base path for Git repositories
-git_base = path.join(data_dir, "repos-test")
+git_base = path.join(data_dir, "repos")
 
 -- Path to the temporary directory, where LuaRocks unpacks downloaded modules
 temp_dir = path.join(data_dir, "tmp")

@@ -55,6 +55,7 @@ function get_luarocks_modules()
 
         -- Check blacklist
         -- TODO better blacklist - support for versions and wildcards
+        -- TODO Check blacklist while processing module, not while traversing luarocks mirror
         if tablex.find(config.blacklist, name) ~= nil then
             log:warn("Module name %s is blacklisted", name)
             return
@@ -73,8 +74,15 @@ end
 
 -- Update source in the rockspec to new LuaDist github repo
 function update_rockspec_source(spec_file, name, version)
-    local lines = file.read(spec_file):splitlines()
+    local contents = file.read(spec_file)
+    local lines = contents:splitlines()
     local source_start, source_end
+
+    -- Prepare new source definition
+    new_source = {
+        url = config.git_module_source:format(name),
+        tag = version
+    }
 
     -- Find source definition line numbers
     for i = 1, #lines do
@@ -88,23 +96,17 @@ function update_rockspec_source(spec_file, name, version)
         end
     end
 
-    -- Return original spec file if cannot parse source
-    -- TODO use table loading to change source
+    -- Load as table and change source, if cannot parse as text.
     if not source_start or not source_end then
-        log:error("Could not update source in rockspec for module " .. name .. " " .. version)
-        return file.read(spec_file)
+        local spec_table = pretty.load(contents, nil, true)
+        spec_table['source'] = new_source
+        return pretty.write(spec_table):strip("{}")
     end
 
     -- Comment out old source definition
     for i = source_start, source_end do
         lines[i] = "-- " .. lines[i]
     end
-
-    -- Prepare new source definition
-    new_source = {
-        url = config.git_module_source:format(name),
-        tag = version
-    }
     source_string = "-- LuaDist source\nsource = " .. pretty.write(new_source) .. "\n"
     lines[source_start] = source_string .. lines[source_start]
 
@@ -115,7 +117,7 @@ end
 ------------ GIT-RELATED
 
 
-function dir_exec(dir, cmd, capture)
+function dir_exec(dir, cmd)
     ok, pwd = change_dir(dir)
     if not ok then error("Could not change directory.") end
 
@@ -126,11 +128,7 @@ function dir_exec(dir, cmd, capture)
     okk = change_dir(pwd)
     if not okk then error("Could not change directory.") end
 
-    if not capture then
-        return ok, code
-    else
-        return ok, code, out, err
-    end
+    return ok, code, out, err
 end
 
 
@@ -139,7 +137,7 @@ end
 function get_module_versions(repo, major)
     if major then
         ok, code, out, err = dir_exec(repo, "git for-each-ref --sort=-taggerdate --format '%(refname:short)' refs/tags | grep '^"
-            .. major .. "[.-]'", true)
+            .. major .. "[.-]'")
 
         if err ~= "" then
             return nil, err
@@ -147,7 +145,7 @@ function get_module_versions(repo, major)
         return out ~= "" and out:splitlines() or {}
     end
 
-    ok, code, out, err = dir_exec(repo, "git tag --sort='v:refname'", true)
+    ok, code, out, err = dir_exec(repo, "git tag --sort='v:refname'")
 
     if code ~= 0 then
         return nil, err
@@ -161,7 +159,23 @@ function prepare_module_repo(module)
     local repo_path = path.join(config.git_base, module)
 
     if path.exists(repo_path) and path.isdir(repo_path) then
-        -- TODO pull all branches and tags
+
+        -- Check if remote is defined
+        ok, _, remote = dir_exec(repo_path, "git remote")
+        if ok and remote ~= "" then
+            -- Fetch all remote branches and tags
+            st = dir_exec(repo_path, "git fetch -q --all --tags")
+            if not st then return nil end
+            st, code, out = dir_exec(repo_path, "git branch -r")
+            branches = out and out:splitlines() or {}
+
+            -- For every remote branch, checkout respective local branch and set it to mirror the remote
+            for i = 1, #branches do
+                local name = branches[i]:strip():gsub("origin/", "")
+                st = dir_exec(repo_path, "git checkout -f -B "..name.." origin/"..name)
+                if not st then return nil end
+            end
+        end
         return repo_path
     end
 
@@ -175,7 +189,7 @@ end
 
 function luarocks_download_module(spec_file, target_dir)
 
-    ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout, true)
+    ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout)
 
     if err:match("Error") or out == "" or code ~= 0 then
         return nil, err
@@ -255,7 +269,7 @@ function process_module_version(name, version, repo, spec_file)
 
     -- Checkout master, just to be sure.
     else
-        ok, _, branches = dir_exec(repo, "git branch", true)
+        ok, _, branches = dir_exec(repo, "git branch")
         if branches ~= "" then
             dir_exec(repo, "git checkout master")
         end
@@ -304,12 +318,17 @@ end
 
 
 function process_module(name, versions)
+    print(name)
 
     repo = prepare_module_repo(name)
 
-    print(name)
+    if not repo then
+        log:error("Failed to prepare Git repo for the module " .. name)
+        return
+    end
+
     for version, spec_file in tablex.sort(versions, constraints.compare_versions) do
-        print("\t"..version)
+        print("\t" .. version)
         process_module_version(name, version, repo, spec_file)
     end
 
