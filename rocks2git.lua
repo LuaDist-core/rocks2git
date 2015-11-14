@@ -5,22 +5,22 @@
 
 module("rocks2git", package.seeall)
 
+local config = require "rocks2git.config"
+local constraints = require "rocks2git.constraints"
+
 local lfs = require "lfs"
 
 require "pl"
 stringx.import()
 
 local logging = require "logging"
+require "logging.file"
 require "logging.console"
-local log = logging.console()
-
-local config = require "rocks2git.config"
-local constraints = require "rocks2git.constraints"
 
 
------------- UTILS
 
-
+-- Change working directory.
+-- Returns success and previous working directory or failure and error message.
 function change_dir(dir_name)
     local prev_dir, err = lfs.currentdir()
     if not prev_dir then
@@ -40,24 +40,16 @@ end
 -- Only returns modules with correct name, version and revision info.
 function get_luarocks_modules()
     local modules = {}
-    local specs = dir.getfiles(config.mirror_repo, "*.rockspec")
+    local specs = dir.getfiles(config.mirror_dir, "*.rockspec")
 
     tablex.foreachi(specs, function(spec, i)
         local f = path.splitext(path.basename(spec))
 
-        name, version, rev = f:match("(.+)%-(.+)%-(%d+)")
+        local name, version, rev = f:match("(.+)%-(.+)%-(%d+)")
 
         -- Check correct rockspec filename
         if not(name and version and rev) then
             log:error("Incorrect rockspec file: %s", path.basename(spec))
-            return
-        end
-
-        -- Check blacklist
-        -- TODO better blacklist - support for versions and wildcards
-        -- TODO Check blacklist while processing module, not while traversing luarocks mirror
-        if tablex.find(config.blacklist, name) ~= nil then
-            log:warn("Module name %s is blacklisted", name)
             return
         end
 
@@ -72,17 +64,20 @@ function get_luarocks_modules()
 end
 
 
--- Update source in the rockspec to new LuaDist github repo
+-- Update source in the rockspec to new LuaDist github repo.
+-- If possible, original source is commented out.
 function update_rockspec_source(spec_file, name, version)
     local contents = file.read(spec_file)
     local lines = contents:splitlines()
     local source_start, source_end
 
     -- Prepare new source definition
-    new_source = {
+    local new_source = {
         url = config.git_module_source:format(name),
         tag = version
     }
+
+    local headline = "-- This file was automatically generated for the LuaDist project.\n\n"
 
     -- Find source definition line numbers
     for i = 1, #lines do
@@ -100,7 +95,7 @@ function update_rockspec_source(spec_file, name, version)
     if not source_start or not source_end then
         local spec_table = pretty.load(contents, nil, true)
         spec_table['source'] = new_source
-        return pretty.write(spec_table):strip("{}")
+        return headline .. pretty.write(spec_table):strip("{}")
     end
 
     -- Comment out old source definition
@@ -108,24 +103,24 @@ function update_rockspec_source(spec_file, name, version)
         lines[i] = "-- " .. lines[i]
     end
     source_string = "-- LuaDist source\nsource = " .. pretty.write(new_source) .. "\n"
+                 .. "-- Original source\n"
     lines[source_start] = source_string .. lines[source_start]
 
-    return ("\n"):join(lines)
+    return headline .. ("\n"):join(lines)
 end
 
 
------------- GIT-RELATED
-
-
+-- Execute a command in a given working directory.
+-- Returns success/failure, actual return code, stdout and stderr outputs.
 function dir_exec(dir, cmd)
-    ok, pwd = change_dir(dir)
+    local ok, pwd = change_dir(dir)
     if not ok then error("Could not change directory.") end
 
     log:debug("Running command: " .. cmd)
 
-    ok, code, out, err = utils.executeex(cmd)
+    local ok, code, out, err = utils.executeex(cmd)
 
-    okk = change_dir(pwd)
+    local okk = change_dir(pwd)
     if not okk then error("Could not change directory.") end
 
     return ok, code, out, err
@@ -136,7 +131,7 @@ end
 -- If argument 'major' is specified, only versions with that major are returned, sorted by commit date newest-first.
 function get_module_versions(repo, major)
     if major then
-        ok, code, out, err = dir_exec(repo, "git for-each-ref --sort=-taggerdate --format '%(refname:short)' refs/tags | grep '^"
+        local ok, code, out, err = dir_exec(repo, "git for-each-ref --sort=-taggerdate --format '%(refname:short)' refs/tags | grep '^"
             .. major .. "[.-]'")
 
         if err ~= "" then
@@ -145,7 +140,7 @@ function get_module_versions(repo, major)
         return out ~= "" and out:splitlines() or {}
     end
 
-    ok, code, out, err = dir_exec(repo, "git tag --sort='v:refname'")
+    local ok, code, out, err = dir_exec(repo, "git tag --sort='v:refname'")
 
     if code ~= 0 then
         return nil, err
@@ -154,25 +149,26 @@ function get_module_versions(repo, major)
 end
 
 
--- Prepare module's repository, creating it if one doesn't exist
+-- Prepare module's repository, creating it if one doesn't exist.
+-- If remote is specified, all branches and tags are updated to match the remote.
 function prepare_module_repo(module)
-    local repo_path = path.join(config.git_base, module)
+    local repo_path = path.join(config.repo_dir, module)
 
     if path.exists(repo_path) and path.isdir(repo_path) then
 
         -- Check if remote is defined
-        ok, _, remote = dir_exec(repo_path, "git remote")
+        local ok, _, remote = dir_exec(repo_path, "git remote")
         if ok and remote ~= "" then
             -- Fetch all remote branches and tags
-            st = dir_exec(repo_path, "git fetch -q --all --tags")
+            local st = dir_exec(repo_path, "git fetch -q --all --tags")
             if not st then return nil end
-            st, code, out = dir_exec(repo_path, "git branch -r")
-            branches = out and out:splitlines() or {}
+            local st, code, out = dir_exec(repo_path, "git branch -r")
+            local branches = out and out:splitlines() or {}
 
             -- For every remote branch, checkout respective local branch and set it to mirror the remote
             for i = 1, #branches do
                 local name = branches[i]:strip():gsub("origin/", "")
-                st = dir_exec(repo_path, "git checkout -f -B "..name.." origin/"..name)
+                local st = dir_exec(repo_path, "git checkout -f -B "..name.." origin/"..name)
                 if not st then return nil end
             end
         end
@@ -187,27 +183,30 @@ function prepare_module_repo(module)
 end
 
 
+-- Download a module using LuaRocks executable.
+-- Returns path to the unpacked module, or nil and error message on failure.
 function luarocks_download_module(spec_file, target_dir)
 
-    ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout)
+    local ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout)
 
     if err:match("Error") or out == "" or code ~= 0 then
         return nil, err
     end
 
     -- Extract module location from luarocks output
-    output = out:splitlines()
+    local output = out:splitlines()
     return target_dir .. "/" .. output[#output-1]
 
 end
 
 
+-- Remove all files and directories in a given path, except for ".git" directory.
 function cleanup_dir(repo)
-    files = dir.getfiles(repo)
+    local files = dir.getfiles(repo)
     for i = 1, #files do
         file.delete(files[i])
     end
-    dirs = dir.getdirectories(repo)
+    local dirs = dir.getdirectories(repo)
     for i = 1, #dirs do
         if path.basename(dirs[i]) ~= ".git" then
             dir.rmtree(dirs[i])
@@ -216,12 +215,13 @@ function cleanup_dir(repo)
 end
 
 
+-- Move all files and directories in a given path, except for ".git" directory.
 function move_module(module_dir, repo)
-    files = dir.getfiles(module_dir)
+    local files = dir.getfiles(module_dir)
     for i = 1, #files do
         dir.movefile(files[i], path.join(repo, path.basename(files[i])))
     end
-    dirs = dir.getdirectories(module_dir)
+    local dirs = dir.getdirectories(module_dir)
     for i = 1, #dirs do
         if path.basename(dirs[i]) ~= ".git" then
             dir.movefile(dirs[i], path.join(repo, path.basename(dirs[i])))
@@ -230,12 +230,13 @@ function move_module(module_dir, repo)
 end
 
 
+-- Process given module version.
 function process_module_version(name, version, repo, spec_file)
     -- Get processed versions
-    tagged_versions = get_module_versions(repo)
+    local tagged_versions = get_module_versions(repo)
 
     -- Get latest major version
-    last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^v?(%d+)[%.%-]") or nil)
+    local last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^v?(%d+)[%.%-]") or nil)
 
     -- Version already processed
     if tablex.find(tagged_versions, version) ~= nil then
@@ -243,12 +244,12 @@ function process_module_version(name, version, repo, spec_file)
     end
 
     -- Download module from LuaRocks
-    module_dir = luarocks_download_module(spec_file, config.temp_dir)
+    local module_dir = luarocks_download_module(spec_file, config.temp_dir)
 
     -- Try to find src.rock in the mirror repo
-    src_file = path.join(config.mirror_repo, name .. "-" .. version .. ".src.rock")
+    local src_file = path.join(config.mirror_dir, name .. "-" .. version .. ".src.rock")
     if not module_dir and path.exists(src_file) and path.isfile(src_file) then
-        module_dir = luarocks_download_module(src_file, config.temp_dir)
+        local module_dir = luarocks_download_module(src_file, config.temp_dir)
     end
 
     if not module_dir or not (path.exists(module_dir) and path.isdir(module_dir)) then
@@ -256,7 +257,7 @@ function process_module_version(name, version, repo, spec_file)
         return
     end
 
-    major = tonumber(version:match("^v?(%d+)[%.%-]"))
+    local major = tonumber(version:match("^v?(%d+)[%.%-]"))
 
     -- Create major branch for last major and checkout master
     if last_major and major > last_major then
@@ -269,14 +270,14 @@ function process_module_version(name, version, repo, spec_file)
 
     -- Checkout master, just to be sure.
     else
-        ok, _, branches = dir_exec(repo, "git branch")
+        local ok, _, branches = dir_exec(repo, "git branch")
         if branches ~= "" then
             dir_exec(repo, "git checkout master")
         end
     end
 
     -- Check if commit chronology can be retained - if not, checkout a new branch based on preceeding tagged version
-    my_major_versions = get_module_versions(repo, major)
+    local my_major_versions = get_module_versions(repo, major)
     if major and #my_major_versions then
         local largest = constraints.parse_version(my_major_versions[1])
         local current = constraints.parse_version(version)
@@ -304,7 +305,7 @@ function process_module_version(name, version, repo, spec_file)
     move_module(module_dir, repo)
 
     -- Add rockspec file with modified source definition
-    rockspec = update_rockspec_source(spec_file, name, version)
+    local rockspec = update_rockspec_source(spec_file, name, version)
     file.write(path.join(repo, path.basename(spec_file)), rockspec)
 
     -- Commit changes
@@ -317,30 +318,37 @@ function process_module_version(name, version, repo, spec_file)
 end
 
 
+-- Process given module.
 function process_module(name, versions)
-    print(name)
-
-    repo = prepare_module_repo(name)
+    local repo = prepare_module_repo(name)
 
     if not repo then
         log:error("Failed to prepare Git repo for the module " .. name)
         return
     end
 
+    -- Check blacklist
+    if tablex.find(config.blacklist, name) ~= nil then
+        log:warn("Module %s is blacklisted", name)
+        return
+    end
+
     for version, spec_file in tablex.sort(versions, constraints.compare_versions) do
-        print("\t" .. version)
         process_module_version(name, version, repo, spec_file)
     end
 
 end
 
 
+--------------------------------------------------------------------------------
 
+
+-- If no argument is given, process all modules from the luarocks mirror repository.
 if #arg < 1 then
-
+    log = logging.file(config.log_file, config.log_date_format)
     log:setLevel(logging.ERROR)
 
-    dir_exec(config.mirror_repo, "git pull origin master")
+    dir_exec(config.mirror_dir, "git pull origin master")
 
     local modules = get_luarocks_modules()
     for name, versions in tablex.sort(modules) do
@@ -348,10 +356,18 @@ if #arg < 1 then
     end
 
     cleanup_dir(config.temp_dir)
+
+-- If module name is given as an argument, process given module.
 else
+    log = logging.console("%level %message\n")
 
     local modules = get_luarocks_modules()
-    name = arg[1]
-    process_module(name, modules[name])
-    cleanup_dir(config.temp_dir)
+    local name = arg[1]
+
+    if not modules[name] then
+        log:error("No such module '%s'.", name)
+    else
+        process_module(name, modules[name])
+        cleanup_dir(config.temp_dir)
+    end
 end

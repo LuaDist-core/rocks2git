@@ -7,43 +7,34 @@ module("rocks2git.config", package.seeall)
 
 local path = require "pl.path"
 local file = require "pl.file"
+local stringx = require "pl.stringx"
+local logging = require "logging"
 
 
--- Main data directory. All other data files should be relative to this.
-data_dir = path.abspath("data")
-
--- Path to the LuaRocks rockspec mirror repository
-mirror_repo = path.join(data_dir, "luarocks-mirror")
-
--- Base path for Git repositories
-git_base = path.join(data_dir, "repos")
-
--- Path to the temporary directory, where LuaRocks unpacks downloaded modules
-temp_dir = path.join(data_dir, "tmp")
+-- Configuration ---------------------------------------------------------------
+luarocks_timeout = 10 -- Timeout (in sec) for LuaRocks downloads
 
 
--- Module blacklist file
-blacklist_file = path.join(data_dir, "module-blacklist")
+-- Directories -----------------------------------------------------------------
+local data_dir = path.abspath("data")
 
--- Log output file path - Use %s in place of date
-log_file = path.join(data_dir, "log/rocks2git%s.log")
-
-
--- Timeout (in seconds) for LuaRocks downloads
-luarocks_timeout = 10
+mirror_dir = path.join(data_dir, "luarocks-mirror")      -- LuaRocks rockspec mirror repository
+repo_dir   = path.join(data_dir, "repos")                -- Base path for module repositories
+temp_dir   = path.join(data_dir, "tmp")                  -- Temp dir for LuaRocks downloaded modules
 
 
--- Author of the Git commits.
-git_user_name = "LuaCI"
-git_user_mail = "luaci@luadist.org"
--- TODO email is incorrect
+-- Blacklist -------------------------------------------------------------------
+blacklist_file = path.join(data_dir, "module-blacklist") -- Module blacklist file
+blacklist      = stringx.split(file.read(blacklist_file))
 
 
--- Module source endpoint - Use %s in place of module name
-git_module_source = "git://github.com/LuaDist2/%s.git"
+-- Logging ---------------------------------------------------------------------
+log_level       = logging.WARNING                              -- Logging level.
+log_file        = path.join(data_dir, "logs/rocks2git-%s.log") -- Log output file path - %s in place of date
+log_date_format = "%Y-%m-%d"                                   -- Log date format
 
 
----------------------------------------------------
-
-
-blacklist = file.read(blacklist_file):split()
+-- Git configuration -----------------------------------------------------------
+git_user_name     = "LuaCI"                              -- Author of the Git commits.
+git_user_mail     = "luaci@luadist.org"                  -- Author's e-mail TODO email is incorrect
+git_module_source = "git://github.com/LuaDist2/%s.git"   -- Module source endpoint - Use %s in place of module name
