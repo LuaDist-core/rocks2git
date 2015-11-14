@@ -1,4 +1,4 @@
--- Rocks2Git - Automatic LuaRocks to Git importer
+-- Rocks2Git - Automatic LuaRocks to Git repo import utility
 -- Part of the LuaDist project - http://luadist.org
 -- Author: Martin Srank, martin@smasty.net
 -- License: MIT
