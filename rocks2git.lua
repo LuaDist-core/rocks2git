@@ -163,7 +163,7 @@ function prepare_module_repo(module)
             local st = dir_exec(repo_path, "git fetch -q --all --tags")
             if not st then return nil end
             local st, code, out = dir_exec(repo_path, "git branch -r")
-            local branches = out and out:splitlines() or {}
+            local branches = out ~= "" and out:splitlines() or {}
 
             -- For every remote branch, checkout respective local branch and set it to mirror the remote
             for i = 1, #branches do
@@ -174,6 +174,8 @@ function prepare_module_repo(module)
         end
         return repo_path
     end
+
+    log:info("New module - %s", module)
 
     dir.makepath(repo_path)
     dir_exec(repo_path, "git init")
@@ -256,6 +258,8 @@ function process_module_version(name, version, repo, spec_file)
         log:error("Module %s-%s could not be downloaded.", name, version)
         return
     end
+
+    log:info("Updating module %s-%s", name, version)
 
     local major = tonumber(version:match("^v?(%d+)[%.%-]"))
 
@@ -346,7 +350,7 @@ end
 -- If no argument is given, process all modules from the luarocks mirror repository.
 if #arg < 1 then
     log = logging.file(config.log_file, config.log_date_format)
-    log:setLevel(logging.ERROR)
+    log:setLevel(config.log_level)
 
     dir_exec(config.mirror_dir, "git pull origin master")
 
