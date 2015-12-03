@@ -11,7 +11,7 @@ Downloads all modules from LuaRocks and creates Git repositories with correct ta
 ## Requirements
 
 ### System
-- `luarocks` command line utility
+- `luarocks` >= 2.2.0
 - `git` >= 2.0.0
 
 ### Lua
@@ -24,7 +24,7 @@ You need to have a LuaRocks mirror repository cloned and linked from config.
 Run this in your `mirror_dir` directory:
 
 ```sh
-$ git clone git@github.com:rocks-moonscript-org/moonrocks-mirror.git ./
+$ git clone https://github.com/rocks-moonscript-org/moonrocks-mirror.git ./
 ```
 
 All paths specified in the configuration file (`rocks2git/config.lua`) need to be created before the utility is run.
@@ -35,7 +35,8 @@ This utility can be used in either _batch_ or _single_ mode.
 
 ### Batch mode
 
-In this mode, the utility processes all the modules from the LuaRocks mirror repository. Output is logged into a log file, which can be specified in config. You can also specify the level of logging.
+In this mode, the utility processes all the modules from the LuaRocks mirror repository. Output is logged into a log file,
+which can be specified in config. You can also specify the level of logging.
 
 ```sh
 $ lua ./rocks2git.lua
