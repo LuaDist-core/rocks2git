@@ -29,12 +29,12 @@ blacklist      = stringx.split(file.read(blacklist_file))
 
 
 -- Logging ---------------------------------------------------------------------
-log_level       = logging.WARNING                              -- Logging level.
+log_level       = logging.WARN                                 -- Logging level.
 log_file        = path.join(data_dir, "logs/rocks2git-%s.log") -- Log output file path - %s in place of date
 log_date_format = "%Y-%m-%d"                                   -- Log date format
 
 
 -- Git configuration -----------------------------------------------------------
-git_user_name     = "LuaCI"                              -- Author of the Git commits.
-git_user_mail     = "luaci@luadist.org"                  -- Author's e-mail TODO email is incorrect
+git_user_name     = "LunaCI"                             -- Author of the Git commits.
+git_user_mail     = "lunaci@luadist.org"                 -- Author's e-mail
 git_module_source = "git://github.com/LuaDist2/%s.git"   -- Module source endpoint - Use %s in place of module name
