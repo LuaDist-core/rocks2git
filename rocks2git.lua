@@ -251,7 +251,7 @@ function process_module_version(name, version, repo, spec_file)
     -- Try to find src.rock in the mirror repo
     local src_file = path.join(config.mirror_dir, name .. "-" .. version .. ".src.rock")
     if not module_dir and path.exists(src_file) and path.isfile(src_file) then
-        local module_dir = luarocks_download_module(src_file, config.temp_dir)
+        module_dir = luarocks_download_module(src_file, config.temp_dir)
     end
 
     if not module_dir or not (path.exists(module_dir) and path.isdir(module_dir)) then
