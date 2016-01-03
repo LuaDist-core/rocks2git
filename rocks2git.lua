@@ -189,7 +189,7 @@ end
 -- Returns path to the unpacked module, or nil and error message on failure.
 function luarocks_download_module(spec_file, target_dir)
 
-    local ok, code, out, err = dir_exec(target_dir, "luarocks unpack '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout)
+    local ok, code, out, err = dir_exec(target_dir, "luarocks unpack --force '" .. spec_file .. "' --timeout=" .. config.luarocks_timeout)
 
     if err:match("Error") or out == "" or code ~= 0 then
         return nil, err
