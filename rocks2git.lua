@@ -261,7 +261,13 @@ function process_module_version(name, version, repo, spec_file)
 
     log:info("Updating module %s-%s", name, version)
 
-    local major = tonumber(version:match("^v?(%d+)[%.%-]"))
+    -- Some modules have version prefixes - we allow v, a, b, r (version, alpha, beta, RC).
+    local major = tonumber(version:match("^[vabr]?(%d+)[%.%-]"))
+
+    if not major then
+        log:error("Module %s-%s: Could not determine major version.", name, version)
+        return
+    end
 
     -- Create major branch for last major and checkout master
     if last_major and major > last_major then
