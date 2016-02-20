@@ -350,6 +350,31 @@ function process_module(name, versions)
 end
 
 
+-- Generate manifest file
+function generate_manifest(mods)
+    local modules = {}
+    local headline = "-- LuaDist Manifest file\n"
+    for name, versions in pairs(mods) do
+        modules[name] = {}
+        for ver, spec_file in tablex.sort(versions) do
+            local contents = file.read(spec_file)
+            local lines = contents:splitlines()
+
+            -- Remove possible hashbangs
+            if lines[1]:match("^#!.*") then
+                table.remove(lines, 1)
+            end
+
+            -- Load rockspec file as table
+            local spec = pretty.load(("\n"):join(lines), nil, false)
+            modules[name][ver] = spec and spec["dependencies"] or {}
+        end
+    end
+
+    file.write(config.manifest_file, headline .. pretty.write(modules):strip("{}"))
+end
+
+
 --------------------------------------------------------------------------------
 
 
@@ -366,6 +391,8 @@ if #arg < 1 then
     end
 
     cleanup_dir(config.temp_dir)
+
+    generate_manifest(modules)
 
 -- If module name is given as an argument, process given module.
 else

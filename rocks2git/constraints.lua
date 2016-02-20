@@ -181,7 +181,7 @@ end
 --- Utility function to compare version numbers given as strings.
 -- @param a string: one version.
 -- @param b string: another version.
--- @return boolean: True if a > b.
+-- @return boolean: True if a < b.
 function compare_versions(a, b)
     return parse_version(a) < parse_version(b)
 end

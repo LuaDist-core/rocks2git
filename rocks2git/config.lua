@@ -22,6 +22,8 @@ mirror_dir = path.join(data_dir, "luarocks-mirror")      -- LuaRocks rockspec mi
 repo_dir   = path.join(data_dir, "repos")                -- Base path for module repositories
 temp_dir   = path.join(data_dir, "tmp")                  -- Temp dir for LuaRocks downloaded modules
 
+manifest_file = path.join(data_dir, "manifest-file")     -- Manifest file with module dependencies
+
 
 -- Blacklist -------------------------------------------------------------------
 blacklist_file = path.join(data_dir, "module-blacklist") -- Module blacklist file
