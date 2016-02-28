@@ -371,7 +371,7 @@ function generate_manifest(mods)
         end
     end
 
-    file.write(config.manifest_file, headline .. pretty.write(modules, "  ", true))
+    file.write(config.manifest_file, headline .. pretty.write(modules))
 end
 
 
