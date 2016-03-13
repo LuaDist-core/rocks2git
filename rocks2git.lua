@@ -353,7 +353,10 @@ end
 -- Generate manifest file
 function generate_manifest(mods)
     local modules = {}
-    local headline = "-- LuaDist Manifest file\n"
+    local headline = os.date([[
+-- LuaDist Manifest file
+-- Generated on %Y-%m-%d, %H:%M
+]])
     for name, versions in pairs(mods) do
         modules[name] = {}
         for ver, spec_file in tablex.sort(versions) do
@@ -367,11 +370,21 @@ function generate_manifest(mods)
 
             -- Load rockspec file as table
             local spec = pretty.load(("\n"):join(lines), nil, false)
-            modules[name][ver] = spec and spec["dependencies"] or {}
+            local manifest = {}
+            if spec then
+                if spec['dependencies'] then manifest['dependencies'] = spec['dependencies'] end
+                if spec['supported_platforms'] then manifest['supported_platforms'] = spec['supported_platforms'] end
+            end
+            modules[name][ver] = manifest
         end
     end
 
-    file.write(config.manifest_file, headline .. pretty.write(modules))
+    local manifest = {
+        package_path = config.git_module_source,
+        packages = modules
+    }
+
+    file.write(config.manifest_file, headline .. pretty.write(manifest))
 end
 
 
