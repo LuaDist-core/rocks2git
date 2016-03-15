@@ -2,7 +2,7 @@
 
 _Automatic LuaRocks to Git repo import utility_
 
-- Author: Martin Šrank, [martin@smasty.net](mailto:martin@smasty.net)
+- Author: Martin Šrank, [hello@smasty.net](mailto:hello@smasty.net)
 - License: MIT
 - **Part of the [LuaDist project](http://luadist.org)**
 
