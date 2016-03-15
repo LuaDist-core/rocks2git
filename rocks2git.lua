@@ -380,7 +380,7 @@ function generate_manifest(mods)
     end
 
     local manifest = {
-        package_path = config.git_module_source,
+        repo_path = config.git_module_source,
         packages = modules
     }
 
