@@ -370,12 +370,10 @@ function generate_manifest(mods)
 
             -- Load rockspec file as table
             local spec = pretty.load(("\n"):join(lines), nil, false)
-            local manifest = {}
-            if spec then
-                if spec['dependencies'] then manifest['dependencies'] = spec['dependencies'] end
-                if spec['supported_platforms'] then manifest['supported_platforms'] = spec['supported_platforms'] end
-            end
-            modules[name][ver] = manifest
+            modules[name][ver] = {
+                dependencies = spec and spec.dependencies,
+                supported_platforms = spec and spec.supported_platforms
+            }
         end
     end
 
