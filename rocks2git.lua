@@ -87,7 +87,7 @@ function update_rockspec_source(spec_file, name, version)
     -- Find source definition line numbers
     for i = 1, #lines do
         local l = lines[i]
-        if l:match("^%s*source%s*=%s{") or (l:match("^%s*source%s*=") and l:match("^%s*{")) then
+        if l:match("^%s*source%s*=%s{") or (l:match("^%s*source%s*=") and lines[i+1]:match("^%s*{")) then
             source_start = i
         end
         if source_start and i >= source_start and lines[i]:match("^%s*}") then
@@ -99,8 +99,13 @@ function update_rockspec_source(spec_file, name, version)
     -- Load as table and change source, if cannot parse as text.
     if not source_start or not source_end then
         local spec_table = pretty.load(contents, nil, true)
+        spec_table['source.old'] = spec_table['source']
         spec_table['source'] = new_source
-        return headline .. pretty.write(spec_table):strip("{}")
+        local spec = stringio.create()
+        for key, val in tablex.sort(spec_table) do
+            spec:write("['" .. key .. "'] = " .. pretty.write(val) .. "\n\n")
+        end
+        return headline .. spec:value()
     end
 
     -- Comment out old source definition
@@ -324,11 +329,15 @@ function process_module_version(name, version, repo, spec_file)
     file.write(path.join(repo, path.basename(spec_file)), rockspec)
 
     -- Commit changes
-    dir_exec(repo, "git add -A")
-    dir_exec(repo, "git commit -m '" .. "Update to version " .. version .. "'")
+    local ok, code, out, err = dir_exec(repo, "git add -A")
+    if not ok then log:error("Git add failed: " .. err) return end
+
+    local ok, code, out, err = dir_exec(repo, "git commit -m '" .. "Update to version " .. version .. "'")
+    if not ok then log:error("Git commit failed: " .. err) return end
 
     -- Tag Git version
-    dir_exec(repo, "git tag -a '" .. version .. "' -m '" .. "Update to version " .. version .. "'")
+    local ok, code, out, err = dir_exec(repo, "git tag -a '" .. version .. "' -m '" .. "Update to version " .. version .. "'")
+    if not ok then log:error("Git tag failed: " .. err) return end
 
 end
 
