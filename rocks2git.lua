@@ -79,6 +79,11 @@ function update_rockspec_source(spec_file, name, version)
 
     local headline = "-- This file was automatically generated for the LuaDist project.\n\n"
 
+    -- Remove possible hashbangs
+    if lines[1]:match("^#!.*") then
+        table.remove(lines, 1)
+    end
+
     -- Find source definition line numbers
     for i = 1, #lines do
         local l = lines[i]
@@ -359,21 +364,27 @@ function generate_manifest(mods)
 ]])
     for name, versions in pairs(mods) do
         modules[name] = {}
-        for ver, spec_file in tablex.sort(versions) do
-            local contents = file.read(spec_file)
-            local lines = contents:splitlines()
+        for version in pairs(versions) do
+            local repo = path.join(config.repo_dir, name)
+            local repo_versions = get_module_versions(repo)
+            if tablex.find(repo_versions, version) then
+                dir_exec(repo, "git checkout '".. version .. "'")
 
-            -- Remove possible hashbangs
-            if lines[1]:match("^#!.*") then
-                table.remove(lines, 1)
+                local spec_file = path.join(repo, name .. "-" .. version .. ".rockspec")
+                if path.exists(spec_file) then
+                    local spec = pretty.load(file.read(spec_file), nil, false)
+
+                    modules[name][version] = {
+                        dependencies = spec and spec.dependencies,
+                        supported_platforms = spec and spec.supported_platforms
+                    }
+                end
+                dir_exec(repo, "git checkout master")
             end
-
-            -- Load rockspec file as table
-            local spec = pretty.load(("\n"):join(lines), nil, false)
-            modules[name][ver] = {
-                dependencies = spec and spec.dependencies,
-                supported_platforms = spec and spec.supported_platforms
-            }
+        end
+        -- If module has no versions, remove
+        if next(modules[name]) == nil then
+            modules[name] = nil
         end
     end
 
