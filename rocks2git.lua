@@ -87,7 +87,7 @@ function update_rockspec_source(spec_file, name, version)
     -- Find source definition line numbers
     for i = 1, #lines do
         local l = lines[i]
-        if l:match("^%s*source%s*=%s{") or (l:match("^%s*source%s*=") and lines[i+1]:match("^%s*{")) then
+        if l:match("^%s*source%s*=%s*{") or (l:match("^%s*source%s*=") and lines[i+1]:match("^%s*{")) then
             source_start = i
         end
         if source_start and i >= source_start and lines[i]:match("^%s*}") then
@@ -99,11 +99,11 @@ function update_rockspec_source(spec_file, name, version)
     -- Load as table and change source, if cannot parse as text.
     if not source_start or not source_end then
         local spec_table = pretty.load(contents, nil, true)
-        spec_table['source.old'] = spec_table['source']
+        spec_table['source_old'] = spec_table['source']
         spec_table['source'] = new_source
         local spec = stringio.create()
         for key, val in tablex.sort(spec_table) do
-            spec:write("['" .. key .. "'] = " .. pretty.write(val) .. "\n\n")
+            spec:write(key .. " = " .. pretty.write(val) .. "\n\n")
         end
         return headline .. spec:value()
     end
