@@ -68,6 +68,10 @@ end
 -- If possible, original source is commented out.
 function update_rockspec_source(spec_file, name, version)
     local contents = file.read(spec_file)
+
+    -- Lowercase package name
+    contents = contents:gsub('%s*package%s*=%s*"[%w_.%-]+"', string.lower)
+
     local lines = contents:splitlines()
     local source_start, source_end
 
@@ -101,6 +105,7 @@ function update_rockspec_source(spec_file, name, version)
         local spec_table = pretty.load(contents, nil, true)
         spec_table['source_old'] = spec_table['source']
         spec_table['source'] = new_source
+        spec_table['package'] = spec_table['package']:lower()
         local spec = stringio.create()
         for key, val in tablex.sort(spec_table) do
             spec:write(key .. " = " .. pretty.write(val) .. "\n\n")
@@ -344,6 +349,7 @@ end
 
 -- Process given module.
 function process_module(name, versions)
+    local name = name:lower()
     local repo = prepare_module_repo(name)
 
     if not repo then
