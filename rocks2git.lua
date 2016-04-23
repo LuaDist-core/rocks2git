@@ -381,25 +381,23 @@ function generate_manifest(mods)
 -- LuaDist Manifest file
 -- Generated on %Y-%m-%d, %H:%M
 ]])
-    for name, versions in pairs(mods) do
+    for name in pairs(mods) do
         modules[name] = {}
-        for version in pairs(versions) do
-            local repo = path.join(config.repo_dir, name)
-            local repo_versions = get_module_versions(repo)
-            if tablex.find(repo_versions, version) then
-                dir_exec(repo, "git checkout '".. version .. "'")
+        local repo = path.join(config.repo_dir, name)
+        local repo_versions = get_module_versions(repo)
+        for _, version in pairs(repo_versions) do
+            dir_exec(repo, "git checkout '".. version .. "'")
 
-                local spec_file = path.join(repo, name .. "-" .. version .. ".rockspec")
-                if path.exists(spec_file) then
-                    local spec = pretty.load(file.read(spec_file), nil, false)
+            local spec_file = path.join(repo, name .. "-" .. version .. ".rockspec")
+            if path.exists(spec_file) then
+                local spec = pretty.load(file.read(spec_file), nil, false)
 
-                    modules[name][version] = {
-                        dependencies = spec and spec.dependencies,
-                        supported_platforms = spec and spec.supported_platforms
-                    }
-                end
-                dir_exec(repo, "git checkout master")
+                modules[name][version] = {
+                    dependencies = spec and spec.dependencies,
+                    supported_platforms = spec and spec.supported_platforms
+                }
             end
+            dir_exec(repo, "git checkout master")
         end
         -- If module has no versions, remove
         if next(modules[name]) == nil then
