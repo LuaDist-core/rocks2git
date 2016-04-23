@@ -91,7 +91,11 @@ function update_rockspec_source(spec_file, name, version)
     -- Find source definition line numbers
     for i = 1, #lines do
         local l = lines[i]
-        if l:match("^%s*source%s*=%s*{") or (l:match("^%s*source%s*=") and lines[i+1]:match("^%s*{")) then
+        if l:match("^%s*source%s*=%s*{[^}]*}") then
+            source_start = i
+            source_end = i
+        elseif
+            l:match("^%s*source%s*=%s*{") or (l:match("^%s*source%s*=") and lines[i+1]:match("^%s*{")) then
             source_start = i
         end
         if source_start and i >= source_start and lines[i]:match("^%s*}") then
