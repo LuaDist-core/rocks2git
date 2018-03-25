@@ -346,6 +346,10 @@ function process_module_version(name, version, repo, spec_file)
     local travis_content = travis_file:read("*all")
     travis_file:close()
 
+    travis_content = travis_content:gsub("@TRAVIS_BEFORE_INSTALL@", config.travis_before_install)
+    travis_content = travis_content:gsub("@TRAVIS_SCRIPT@", config.travis_script)
+    travis_content = travis_content:gsub("@TRAVIS_AFTER_SCRIPT@", config.travis_after_script)
+
     log:debug("Writing travis config to '" .. path.join(repo, ".travis.yml") .. "'")
     file.write(path.join(repo, ".travis.yml"), travis_content)
 
