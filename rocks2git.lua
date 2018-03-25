@@ -133,14 +133,14 @@ end
 -- Returns success/failure, actual return code, stdout and stderr outputs.
 function dir_exec(dir, cmd)
     local ok, pwd = change_dir(dir)
-    if not ok then error("Could not change directory.") end
+    if not ok then error("Could not change directory to '" .. dir .. "'.") end
 
     log:debug("Running command: " .. cmd)
 
     local ok, code, out, err = utils.executeex(cmd)
 
     local okk = change_dir(pwd)
-    if not okk then error("Could not change directory.") end
+    if not okk then error("Could not change directory to '" .. pwd .. "'.") end
 
     return ok, code, out, err
 end
@@ -336,6 +336,18 @@ function process_module_version(name, version, repo, spec_file)
     -- Add rockspec file with modified source definition
     local rockspec = update_rockspec_source(spec_file, name, version)
     file.write(path.join(repo, path.basename(spec_file)), rockspec)
+
+    -- Add travis config
+    local travis_file, err = io.open(config.travis_file, "r")
+    if not travis_file then
+        log:error("Failed to open travis config '" .. config.travis_file .. "': " .. err)
+        return
+    end
+    local travis_content = travis_file:read("*all")
+    travis_file:close()
+
+    log:debug("Writing travis config to '" .. path.join(repo, ".travis.yml") .. "'")
+    file.write(path.join(repo, ".travis.yml"), travis_content)
 
     -- Commit changes
     local ok, code, out, err = dir_exec(repo, "git add -A")

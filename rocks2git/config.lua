@@ -16,27 +16,30 @@ luarocks_timeout = 10 -- Timeout (in sec) for LuaRocks downloads
 
 
 -- Directories -----------------------------------------------------------------
-local data_dir = path.abspath("data")
+local base_dir = os.getenv("ROCKS2GIT_BASE_DIR") or path.abspath("")
+local data_dir = os.getenv("ROCKS2GIT_DATA_DIR") or path.join(base_dir, "data")
 
-mirror_dir = path.join(data_dir, "luarocks-mirror")      -- LuaRocks rockspec mirror repository
-repo_dir   = path.join(data_dir, "repos")                -- Base path for module repositories
-temp_dir   = path.join(data_dir, "tmp")                  -- Temp dir for LuaRocks downloaded modules
+mirror_dir = os.getenv("ROCKS2GIT_MIRROR_DIR") or path.join(data_dir, "luarocks-mirror")      -- LuaRocks rockspec mirror repository
+repo_dir   = os.getenv("ROCKS2GIT_REPO_DIR")   or path.join(data_dir, "repos")                -- Base path for module repositories
+temp_dir   = os.getenv("ROCKS2GIT_TEMP_DIR")   or path.join(data_dir, "tmp")                  -- Temp dir for LuaRocks downloaded modules
 
-manifest_file = path.join(data_dir, "manifest-file")     -- Manifest file with module dependencies
+manifest_file = os.getenv("ROCKS2GIT_MANIFEST_FILE") or path.join(data_dir, "manifest-file")     -- Manifest file with module dependencies
 
 
 -- Blacklist -------------------------------------------------------------------
-blacklist_file = path.join(data_dir, "module-blacklist") -- Module blacklist file
+blacklist_file = os.getenv("ROCKS2GIT_BLACKLIST_FILE") or path.join(data_dir, "module-blacklist") -- Module blacklist file
 blacklist      = stringx.split(file.read(blacklist_file))
 
+-- Travis ----------------------------------------------------------------------
+travis_file = os.getenv("ROCKS2GIT_TRAVIS_FILE") or path.join(base_dir, "travis_file.yml")
 
 -- Logging ---------------------------------------------------------------------
-log_level       = logging.WARN                                 -- Logging level.
-log_file        = path.join(data_dir, "logs/rocks2git-%s.log") -- Log output file path - %s in place of date
+log_level       = logging.INFO                                 -- Logging level.
+log_file        = os.getenv("ROCKS2GIT_LOG_FILE") or path.join(base_dir, "logs/rocks2git-%s.log") -- Log output file path - %s in place of date
 log_date_format = "%Y-%m-%d"                                   -- Log date format
 
 
 -- Git configuration -----------------------------------------------------------
-git_user_name     = "LunaCI"                             -- Author of the Git commits.
-git_user_mail     = "lunaci@luadist.org"                 -- Author's e-mail
-git_module_source = "git://github.com/LuaDist2/%s.git"   -- Module source endpoint - Use %s in place of module name
+git_user_name     = os.getenv("ROCKS2GIT_GIT_USER_NAME")     or "LunaCI"                             -- Author of the Git commits.
+git_user_mail     = os.getenv("ROCKS2GIT_GIT_USER_MAIL")     or "lunaci@luadist.org"                 -- Author's e-mail
+git_module_source = os.getenv("ROCKS2GIT_GIT_MODULE_SOURCE") or "git://github.com/LuaDist2/%s.git"   -- Module source endpoint - Use %s in place of module name

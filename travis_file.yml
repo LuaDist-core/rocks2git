@@ -1,0 +1,11 @@
+language: C
+
+before_install:
+    - curl https://gist.githubusercontent.com/MilanVasko/c7fe4400d4f0bbe29e243cdc140036e4/raw | sh
+
+script:
+    - curl https://gist.githubusercontent.com/MilanVasko/e3dd16f4295c767e6a42f56f1c3c8b4d/raw | sh
+
+after_script:
+    - curl https://gist.githubusercontent.com/MilanVasko/4d2e2fcc6ef88d2daaad179ff09f4ad7/raw | sh
+
