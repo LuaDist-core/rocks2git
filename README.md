@@ -41,7 +41,7 @@ All paths specified in the configuration file (`rocks2git/config.lua`) need to e
 - `ROCKS2GIT_MIRROR_DIR` - directory containing the LuaRocks rockspec mirror repository (defaults to `${ROCKS2GIT_DATA_DIR}/luarocks-mirror`)
 - `ROCKS2GIT_REPO_DIR` - base path for module repositories (defaults to `${ROCKS2GIT_DATA_DIR}/repos`)
 - `ROCKS2GIT_TEMP_DIR` - temporary directory for LuaRocks downloaded modules (defaults to `${ROCKS2GIT_DATA_DIR}/tmp`)
--
+
 - `ROCKS2GIT_MANIFEST_FILE` - manifest file with module dependencies (defaults to `${ROCKS2GIT_DATA_DIR}/manifest-file`)
 - `ROCKS2GIT_BLACKLIST_FILE` - module blacklist file (defaults to `${ROCKS2GIT_DATA_DIR}/module-blacklist`)
 
