@@ -12,7 +12,7 @@ local logging = require "logging"
 
 
 -- Configuration ---------------------------------------------------------------
-luarocks_timeout = 10 -- Timeout (in sec) for LuaRocks downloads
+luarocks_timeout = tonumber(os.getenv("ROCKS2GIT_LUAROCKS_TIMEOUT")) or 10 -- Timeout (in sec) for LuaRocks downloads
 
 
 -- Directories -----------------------------------------------------------------
