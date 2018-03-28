@@ -31,7 +31,7 @@ blacklist_file = os.getenv("ROCKS2GIT_BLACKLIST_FILE") or path.join(data_dir, "m
 blacklist      = stringx.split(file.read(blacklist_file))
 
 -- Travis ----------------------------------------------------------------------
-travis_file = os.getenv("ROCKS2GIT_TRAVIS_FILE") or path.join(base_dir, "travis_file.yml")
+travis_file = os.getenv("ROCKS2GIT_TRAVIS_FILE") or path.join(base_dir, "travis_file.yml") -- Travis configuration template
 
 travis_before_install = os.getenv("ROCKS2GIT_TRAVIS_BEFORE_INSTALL") or "https://gist.githubusercontent.com/MilanVasko/c7fe4400d4f0bbe29e243cdc140036e4/raw"
 travis_script         = os.getenv("ROCKS2GIT_TRAVIS_SCRIPT")         or "https://gist.githubusercontent.com/MilanVasko/e3dd16f4295c767e6a42f56f1c3c8b4d/raw"
