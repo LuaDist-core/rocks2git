@@ -372,6 +372,8 @@ function process_module(name, versions)
     local name = name:lower()
     local repo = prepare_module_repo(name)
 
+    log:debug("Processing module 'name', versions: " .. pl.pretty.write(versions))
+
     if not repo then
         log:error("Failed to prepare Git repo for the module " .. name)
         return
@@ -384,6 +386,7 @@ function process_module(name, versions)
     end
 
     for version, spec_file in tablex.sort(versions, constraints.compare_versions) do
+        log:debug("Module '" .. name .. "' version '" .. version .. "'")
         process_module_version(name, version, repo, spec_file)
     end
 
