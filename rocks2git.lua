@@ -395,11 +395,22 @@ function process_module(name, versions)
         return
     end
 
-    for version, spec_file in tablex.sort(versions, constraints.compare_versions) do
+    local valid_versions = {}
+    for version, path in pairs(versions) do
+        local ok, v = pcall(function()
+            return constraints.parse_version(version)
+        end)
+        if not ok or v == nil then
+            log:error("Version '" .. version .. "' is not valid, skipping...")
+        else
+            valid_versions[version] = path
+        end
+    end
+
+    for version, spec_file in tablex.sort(valid_versions, constraints.compare_versions) do
         log:debug("Module '" .. name .. "' version '" .. version .. "'")
         process_module_version(name, version, repo, spec_file)
     end
-
 end
 
 
