@@ -390,7 +390,7 @@ function process_module(name, versions)
     local name = name:lower()
     local repo = prepare_module_repo(name)
 
-    log:debug("Processing module 'name', versions: " .. pl.pretty.write(versions))
+    log:debug("Processing module '" .. name .. "', versions: " .. pl.pretty.write(versions))
 
     if not repo then
         log:error("Failed to prepare Git repo for the module " .. name)
