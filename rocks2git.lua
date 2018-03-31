@@ -226,15 +226,22 @@ end
 
 -- Remove all files and directories in a given path, except for ".git" directory.
 function cleanup_dir(repo)
-    local files = dir.getfiles(repo)
-    for i = 1, #files do
-        file.delete(files[i])
+    local function cleanup()
+      local files = dir.getfiles(repo)
+      for i = 1, #files do
+          file.delete(files[i])
+      end
+      local dirs = dir.getdirectories(repo)
+      for i = 1, #dirs do
+          if path.basename(dirs[i]) ~= ".git" then
+              dir.rmtree(dirs[i])
+          end
+      end
     end
-    local dirs = dir.getdirectories(repo)
-    for i = 1, #dirs do
-        if path.basename(dirs[i]) ~= ".git" then
-            dir.rmtree(dirs[i])
-        end
+
+    local ok, err = pcall(cleanup)
+    if not ok then
+        log:error("Error cleaning up '" .. repo .. "': " .. err)
     end
 end
 
