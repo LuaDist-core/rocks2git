@@ -109,7 +109,11 @@ function update_rockspec_source(spec_file, name, version)
 
     -- Load as table and change source, if cannot parse as text.
     if not source_start or not source_end then
-        local spec_table = pretty.load(contents, nil, true)
+        local spec_table, err = pretty.load(contents, nil, true)
+        if not spec_table then
+            -- TODO: should the load be paranoid anyway?
+            return nil, "failed to load '" .. spec_file .. "' - " .. err
+        end
         spec_table['source_old'] = spec_table['source']
         spec_table['source'] = new_source
         spec_table['package'] = spec_table['package']:lower()
@@ -344,7 +348,11 @@ function process_module_version(name, version, repo, spec_file)
     move_module(module_dir, repo)
 
     -- Add rockspec file with modified source definition
-    local rockspec = update_rockspec_source(spec_file, name, version)
+    local rockspec, err = update_rockspec_source(spec_file, name, version)
+    if not rockspec then
+      log:error("Error updating rockspec: " .. err)
+      return
+    end
     file.write(path.join(repo, path.basename(spec_file)), rockspec)
 
     -- Add travis config
