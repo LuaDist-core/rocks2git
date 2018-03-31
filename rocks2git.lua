@@ -13,6 +13,9 @@ local lfs = require "lfs"
 require "pl"
 stringx.import()
 
+local pl = {}
+pl.pretty = require 'pl.pretty'
+
 local logging = require "logging"
 require "logging.file"
 require "logging.console"
