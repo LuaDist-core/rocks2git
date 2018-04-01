@@ -33,9 +33,9 @@ blacklist      = stringx.split(file.read(blacklist_file))
 -- Travis ----------------------------------------------------------------------
 travis_file = os.getenv("ROCKS2GIT_TRAVIS_FILE") or path.join(base_dir, "travis_file.yml") -- Travis configuration template
 
-travis_before_install = os.getenv("ROCKS2GIT_TRAVIS_BEFORE_INSTALL") or "https://gist.githubusercontent.com/MilanVasko/c7fe4400d4f0bbe29e243cdc140036e4/raw"
-travis_script         = os.getenv("ROCKS2GIT_TRAVIS_SCRIPT")         or "https://gist.githubusercontent.com/MilanVasko/e3dd16f4295c767e6a42f56f1c3c8b4d/raw"
-travis_after_script   = os.getenv("ROCKS2GIT_TRAVIS_AFTER_SCRIPT")   or "https://gist.githubusercontent.com/MilanVasko/4d2e2fcc6ef88d2daaad179ff09f4ad7/raw"
+travis_before_install = os.getenv("ROCKS2GIT_TRAVIS_BEFORE_INSTALL") or "https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/before_install.sh"
+travis_script         = os.getenv("ROCKS2GIT_TRAVIS_SCRIPT")         or "https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/script.sh"
+travis_after_script   = os.getenv("ROCKS2GIT_TRAVIS_AFTER_SCRIPT")   or "https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/after_script.sh"
 
 -- Logging ---------------------------------------------------------------------
 log_level       = logging.DEBUG                                 -- Logging level.

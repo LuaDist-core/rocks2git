@@ -52,9 +52,9 @@ All paths specified in the configuration file (`rocks2git/config.lua`) need to e
 These are URLs for bash scripts which will be run by the Travis CI after wiring everything together.
 The names of the environment variables correspond to the names of the Travis CI events.
 
-- `ROCKS2GIT_TRAVIS_BEFORE_INSTALL` - defaults to `https://gist.githubusercontent.com/MilanVasko/c7fe4400d4f0bbe29e243cdc140036e4/raw`
-- `ROCKS2GIT_TRAVIS_SCRIPT` - defaults to `https://gist.githubusercontent.com/MilanVasko/e3dd16f4295c767e6a42f56f1c3c8b4d/raw`
-- `ROCKS2GIT_TRAVIS_AFTER_SCRIPT` - defaults to `https://gist.githubusercontent.com/MilanVasko/4d2e2fcc6ef88d2daaad179ff09f4ad7/raw`
+- `ROCKS2GIT_TRAVIS_BEFORE_INSTALL` - defaults to `https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/before_install.sh`
+- `ROCKS2GIT_TRAVIS_SCRIPT` - defaults to `https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/script.sh`
+- `ROCKS2GIT_TRAVIS_AFTER_SCRIPT` - defaults to `https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/after_script.sh`
 
 `ROCKS2GIT_LOG_FILE` - log output file path - use %s in place of date (defaults to `${ROCKS2GIT_BASE_DIR}/logs/rocks2git-%s.log`)
 
