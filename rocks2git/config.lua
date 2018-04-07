@@ -39,8 +39,7 @@ travis_after_script   = os.getenv("ROCKS2GIT_TRAVIS_AFTER_SCRIPT")   or "https:/
 
 -- Logging ---------------------------------------------------------------------
 log_level       = logging.DEBUG                                 -- Logging level.
-log_file        = os.getenv("ROCKS2GIT_LOG_FILE") or path.join(base_dir, "logs/rocks2git-%s.log") -- Log output file path - %s in place of date
-log_date_format = "%Y-%m-%d"                                   -- Log date format
+log_dir         = os.getenv("ROCKS2GIT_LOG_DIR") or path.join(base_dir, 'logs') -- Log directory
 
 
 -- Git configuration -----------------------------------------------------------

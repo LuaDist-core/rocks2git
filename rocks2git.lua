@@ -467,7 +467,7 @@ end
 
 -- If no argument is given, process all modules from the luarocks mirror repository.
 if #arg < 1 then
-    log = logging.file(config.log_file, config.log_date_format)
+    log = logging.file(config.log_dir .. "/rocks2git-%s.log", "%Y-%m-%d")
     log:setLevel(config.log_level)
 
     dir_exec(config.mirror_dir, "git pull origin master")

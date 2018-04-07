@@ -56,7 +56,7 @@ The names of the environment variables correspond to the names of the Travis CI 
 - `ROCKS2GIT_TRAVIS_SCRIPT` - defaults to `https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/script.sh`
 - `ROCKS2GIT_TRAVIS_AFTER_SCRIPT` - defaults to `https://raw.githubusercontent.com/LuaDist-core/travis-scripts/master/after_script.sh`
 
-`ROCKS2GIT_LOG_FILE` - log output file path - use %s in place of date (defaults to `${ROCKS2GIT_BASE_DIR}/logs/rocks2git-%s.log`)
+- `ROCKS2GIT_LOG_DIR` - log directory (defaults to `${ROCKS2GIT_BASE_DIR}/logs`)
 
 ### Git configuration
 
