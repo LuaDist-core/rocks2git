@@ -271,7 +271,7 @@ function process_module_version(name, version, repo, spec_file)
     local tagged_versions = get_module_versions(repo)
 
     -- Get latest major version
-    local last_major = tonumber(#tagged_versions and tagged_versions[#tagged_versions]:match("^v?(%d+)[%.%-]") or nil)
+    local last_major = tonumber(#tagged_versions > 0 and tagged_versions[#tagged_versions]:match("^v?(%d+)[%.%-]") or nil)
 
     -- Version already processed
     if tablex.find(tagged_versions, version) ~= nil then
